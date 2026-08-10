@@ -447,7 +447,13 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
             break;
         case Keyboard.KEYCODE_DONE:
         case '\n':
-            keyDownUp(ic, KeyEvent.KEYCODE_ENTER);
+            // Commit a literal newline instead of sending a KEYCODE_ENTER key
+            // event. Chat apps (Discord, Google Messages) configure their
+            // compose fields with an IME_ACTION_SEND, so the framework routes
+            // a raw Enter key to that action and sends the message; a
+            // committed "\n" character is inserted as text and cannot be
+            // intercepted as a send.
+            ic.commitText("\n", 1);
             break;
         default:
             if (keyCode >= '0' && keyCode <= '9') {
