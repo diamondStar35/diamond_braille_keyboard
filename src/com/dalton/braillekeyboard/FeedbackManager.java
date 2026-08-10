@@ -70,8 +70,8 @@ public class FeedbackManager {
 
         if (Options.getBooleanPreference(context,
                 R.string.pref_haptic_feedback_key, true)
-                && vibrator != null) {
-            long duration = vibrationDuration(event);
+                && event.isHapticEnabled(context) && vibrator != null) {
+            long duration = event.vibrationMillis;
             if (duration > 0) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     vibrator.vibrate(VibrationEffect.createOneShot(duration,
@@ -80,27 +80,6 @@ public class FeedbackManager {
                     vibrator.vibrate(duration);
                 }
             }
-        }
-    }
-
-    private static long vibrationDuration(FeedbackEvent event) {
-        switch (event) {
-        case OPEN:
-            return 50;
-        case CLOSE:
-            return 200;
-        case TYPE:
-            return 25;
-        case TYPE_UPPER:
-            return 35;
-        case DELETE:
-            return 30;
-        case NEW_LINE:
-            return 25;
-        case CALIBRATE:
-            return 125;
-        default:
-            return 0;
         }
     }
 

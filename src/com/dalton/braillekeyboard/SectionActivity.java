@@ -151,11 +151,15 @@ public class SectionActivity extends AppCompatActivity {
                 addOptions(findPreference(getString(
                         R.string.pref_echo_feedback_key)),
                         KeyboardEcho.ALL);
+                openActivity(R.string.pref_haptic_events_key,
+                        HapticEventsActivity.class);
                 break;
             case SectionActivity.SECTION_TEXT_TO_SPEECH:
                 setPreferencesFromResource(R.xml.prefs_tts, rootKey);
                 addTTSList(findPreference(getString(
                         R.string.pref_text_to_speech_engine_key)));
+                openActivity(R.string.pref_speech_events_key,
+                        SpeechEventsActivity.class);
                 break;
             case SectionActivity.SECTION_MISC:
                 setPreferencesFromResource(R.xml.prefs_misc, rootKey);
@@ -292,6 +296,25 @@ public class SectionActivity extends AppCompatActivity {
                     entries.add(TableNames.describeTable(getActivity(), table));
                     entryValues.add(table.getId());
                 }
+            }
+        }
+
+        // Launch a sub-screen activity when one of this section's preferences
+        // is tapped (e.g. "Speech events" or "Haptic feedback events").
+        private void openActivity(final int keyResource,
+                final Class<?> activityClass) {
+            Preference preference = findPreference(getString(keyResource));
+            if (preference != null) {
+                preference.setOnPreferenceClickListener(
+                        new Preference.OnPreferenceClickListener() {
+                            @Override
+                            public boolean onPreferenceClick(
+                                    Preference preference) {
+                                startActivity(new Intent(getActivity(),
+                                        activityClass));
+                                return true;
+                            }
+                        });
             }
         }
 

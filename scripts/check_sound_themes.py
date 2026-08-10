@@ -6,7 +6,7 @@ import os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOUNDS = os.path.join(ROOT, 'assets', 'sounds')
 EVENTS = ['type', 'type_upper', 'delete', 'new_line', 'open', 'close',
-          'calibrate']
+          'calibrate', 'misspelling', 'command']
 errors = []
 
 for folder in sorted(os.listdir(SOUNDS)):

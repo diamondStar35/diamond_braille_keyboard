@@ -159,9 +159,11 @@ public class View extends android.view.View implements PadController.Listener {
             @Override
             public void ttsReady() {
                 setLocale(View.this.listener.getLocale());
-                speech.speak(getContext(),
-                        getContext().getString(R.string.ready),
-                        Speech.QUEUE_FLUSH);
+                if (SpeechEvent.KEYBOARD_SHOWN.isEnabled(getContext())) {
+                    speech.speak(getContext(),
+                            getContext().getString(R.string.ready),
+                            Speech.QUEUE_FLUSH);
+                }
             }
         });
 
@@ -183,7 +185,8 @@ public class View extends android.view.View implements PadController.Listener {
 
     public void close() {
         feedbackManager.emitEvent(FeedbackEvent.CLOSE);
-        speech.shutdown(getContext().getString(R.string.closing_keyboard));
+        speech.shutdown(SpeechEvent.KEYBOARD_CLOSED.isEnabled(getContext())
+                ? getContext().getString(R.string.closing_keyboard) : null);
         actionHandler.shutdown();
         setLocale(Locale.getDefault(), false);
     }

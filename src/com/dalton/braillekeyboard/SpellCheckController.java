@@ -17,6 +17,8 @@
 package com.dalton.braillekeyboard;
 
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 
 import com.dalton.braillekeyboard.ActionHandler.OnActionListener;
 import com.dalton.braillekeyboard.SpellChecker.SpellingSuggestionsReadyListener;
@@ -44,6 +46,8 @@ public class SpellCheckController {
     private KeyboardListener listener;
     private OnActionListener callback;
     private TextProvider textProvider;
+
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private int directionThroughSuggestionList;
     private SpellChecker.Direction spellingDirection;
@@ -126,6 +130,34 @@ public class SpellCheckController {
         }
     }
 
+    /**
+     * Check the word that was just typed and announce (and vibrate for) a
+     * misspelling. Unlike {@link #doSpellCheck} this queries the word
+     * directly with the platform's word-level spell checker, which every
+     * spell checker service answers (the sentence-level API is not answered
+     * by all services on all devices).
+     *
+     * @param context The application context.
+     * @param word The word that was just typed.
+     * @param offset The position of the word in the current text.
+     */
+    public void checkTypedWord(final Context context, final String word,
+            final int offset) {
+        if (!spellChecker.checkWord(new SpellingSuggestionsReadyListener() {
+            @Override
+            public void suggestionsReady(Suggestion result) {
+                spellingSuggestion = result;
+                if (result != null) {
+                    spellingDirection = SpellChecker.Direction.UNDER_CURSOR;
+                    directionThroughSuggestionList = 0;
+                    handleSpellingSuggestion(context);
+                }
+            }
+        }, word, offset)) {
+            // No spell checker is available; nothing to do.
+        }
+    }
+
     /** Move to the next spelling suggestion for the word under the cursor. */
     public void nextSuggestion(Context context) {
         if (spellingSuggestion != null) {
@@ -155,6 +187,7 @@ public class SpellCheckController {
     private void handleSpellingSuggestion(Context context) {
         boolean password = false;
         String message = null;
+        boolean misspellingAnnounced = false;
 
         if (spellingSuggestion == null && directionThroughSuggestionList != 0) {
             message = context.getString(R.string.word_correct);
@@ -167,6 +200,7 @@ public class SpellCheckController {
                 previousSuggestion(context);
             } else {
                 message = context.getString(R.string.word_misspelled);
+                misspellingAnnounced = true;
             }
         } else if (spellingSuggestion != null) {
             password = true;
@@ -184,6 +218,19 @@ public class SpellCheckController {
         if (message != null) {
             callback.onText("%s", message, listener.isPasswordField()
                     && password, Speech.QUEUE_ADD);
+        }
+
+        if (misspellingAnnounced) {
+            // The spell checker can deliver its results on a background
+            // thread; emit the haptic on the main thread, after the
+            // announcement, so it can never delay or drop the speech above.
+            final OnActionListener cb = callback;
+            mainHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    cb.onNotify(FeedbackEvent.MISSPELLING);
+                }
+            });
         }
     }
 

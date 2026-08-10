@@ -193,8 +193,8 @@ public class ActionHandler {
         String message = null;
         FeedbackEvent feedbackEvent = FeedbackEvent.TYPE;
         // Every handled gesture emits the generic TYPE feedback event unless it
-        // sets a more specific one (DELETE, NEW_LINE) below; NONE returns early
-        // and the default case suppresses the event entirely.
+        // sets a more specific one (DELETE, NEW_LINE, COMMAND) below; NONE
+        // returns early and the default case suppresses the event entirely.
         boolean notify = true;
         boolean setDots = false;
         boolean considerPassword = false;
@@ -239,6 +239,7 @@ public class ActionHandler {
                         R.string.pref_haptic_feedback_key, true);
                 message = context.getString(R.string.keyboard_feedback_all);
             }
+            feedbackEvent = FeedbackEvent.COMMAND;
             callback.onFeedbackSettingsChanged();
             break;
         case ONE_UP:
@@ -264,15 +265,18 @@ public class ActionHandler {
             Options.writeStringPreference(context,
                     R.string.pref_echo_feedback_key, echo.getValue());
             message = context.getString(echo.resource);
+            feedbackEvent = FeedbackEvent.COMMAND;
             break;
         case TWO_FINGERS_DOWN: // switch to the next Braille table
+            feedbackEvent = FeedbackEvent.COMMAND;
             message = listener.switchTable();
             message = message == null ? context
                     .getString(R.string.no_braille_table) : message;
             callback.onSetLocale(listener.getLocale());
             break;
         case DOTS_FOUR_SIX_RIGHT:
-            message = context.getString(R.string.closing_keyboard);
+            // The "closing keyboard" announcement is owned by View.close() so
+            // it honours the "Keyboard closed" speech event.
             listener.closeKeyboard();
             break;
         case THREE_LEFT:
@@ -294,6 +298,7 @@ public class ActionHandler {
             }
             break;
         case THREE_FINGERS_LEFT:
+            feedbackEvent = FeedbackEvent.COMMAND;
             listener.toggleEmojiMode();
             break;
         case THREE_FINGERS_DOWN: // submit the text / perform editor action
@@ -331,6 +336,7 @@ public class ActionHandler {
                             .getString(R.string.pref_privacy_default))) ? context
                     .getString(R.string.privacy_enabled) : context
                     .getString(R.string.privacy_disabled);
+            feedbackEvent = FeedbackEvent.COMMAND;
             break;
         case FIVE_LEFT:
             feedbackEvent = FeedbackEvent.DELETE;
@@ -338,6 +344,7 @@ public class ActionHandler {
                     fastDoubleSwipe);
             break;
         case FIVE_DOWN:
+            feedbackEvent = FeedbackEvent.COMMAND;
             if (fastDoubleSwipe) {
                 message = context.getString(R.string.show_input_switcher);
                 inputManager.showInputMethodPicker();
@@ -346,6 +353,7 @@ public class ActionHandler {
             }
             break;
         case FIVE_UP:
+            feedbackEvent = FeedbackEvent.COMMAND;
             if (fastDoubleSwipe) {
                 callback.onSetLocale(Locale.getDefault());
                 message = context.getString(R.string.show_settings);
@@ -383,6 +391,7 @@ public class ActionHandler {
             editingController.moveRight(context, Granularity.ALL);
             break;
         case HOLD_SIX_DOWN:
+            feedbackEvent = FeedbackEvent.COMMAND;
             boolean echoPassword = Options.switchBooleanPreference(context,
                     R.string.pref_echo_passwords_key, false);
             message = echoPassword ? context
@@ -399,6 +408,7 @@ public class ActionHandler {
                     fastDoubleSwipe);
             break;
         case HOLD_THREE_RIGHT:
+            feedbackEvent = FeedbackEvent.COMMAND;
             int brailleType = listener.switchBrailleType();
             message = brailleType == 8 ? context
                     .getString(R.string.grade_computer) : context
@@ -406,6 +416,7 @@ public class ActionHandler {
             callback.onSetLocale(listener.getLocale());
             break;
         case HOLD_THREE_DOWN:
+            feedbackEvent = FeedbackEvent.COMMAND;
             message = listener.switchTable();
             message = message == null ? context
                     .getString(R.string.no_braille_table) : message;
@@ -420,6 +431,7 @@ public class ActionHandler {
                             : R.string.unset_mark);
             break;
         case HOLD_ONE_LEFT:
+            feedbackEvent = FeedbackEvent.COMMAND;
             message = context.getString(R.string.keyboard_shrink);
             callback.onShrink();
             break;
@@ -441,6 +453,7 @@ public class ActionHandler {
                             .getString(R.string.pref_auto_caps_default))) ? context
                     .getString(R.string.auto_caps_enabled) : context
                     .getString(R.string.auto_caps_disabled);
+            feedbackEvent = FeedbackEvent.COMMAND;
             break;
         case HOLD_FOUR_LEFT:
             editingController.doSpellCheck(context, SpellChecker.Direction.LEFT,

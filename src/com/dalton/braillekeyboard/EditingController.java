@@ -304,14 +304,20 @@ public class EditingController implements SpellCheckController.TextProvider {
         }
         callback.onText("%s", message, listener.isPasswordField());
 
-        if (Options.getBooleanPreference(context,
-                R.string.pref_echo_misspellings_key,
-                Boolean.parseBoolean(context
-                        .getString(R.string.pref_echo_misspellings_default)))
-                && spellCheckController.isSpellCheckAvailable()) {
-            spellCheckController.doSpellCheck(context,
-                    SpellChecker.Direction.UNDER_CURSOR, 0,
-                    listener.getCursor() - 2);
+        if (SpeechEvent.MISSPELLING.isEnabled(context)
+                && spellCheckController.isSpellCheckAvailable()
+                && word != null && word.charsBefore > 0) {
+            int cursor = listener.getCursor();
+            // The word was captured just before the space was committed, so
+            // the typed portion starts (cursor - 1) characters back, past
+            // the space. Check only the typed part: when the space splits a
+            // word, characters after the cursor belong to the next word.
+            String typedWord = word.word.substring(0, word.charsBefore);
+            int wordOffset = cursor - 1 - word.charsBefore;
+            if (wordOffset >= 0) {
+                spellCheckController.checkTypedWord(context, typedWord,
+                        wordOffset);
+            }
         }
     }
 

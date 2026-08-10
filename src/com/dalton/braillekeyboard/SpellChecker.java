@@ -28,6 +28,26 @@ import android.view.textservice.SuggestionsInfo;
 import android.view.textservice.TextInfo;
 import android.view.textservice.TextServicesManager;
 
+/**
+ * Wraps the platform spell checker service behind a single persistent
+ * {@link SpellCheckerSession} that the keyboard shares for the whole input
+ * session.
+ *
+ * <p>One session is shared by the word-level typing check
+ * ({@link #checkWord}) and the sentence-level text check
+ * ({@link #checkSpelling}). The session is deliberately persistent: creating
+ * a session per query is neither necessary nor desirable. To keep it
+ * reliable it is managed: {@link #ensureSpellCheckerSession()} verifies the
+ * session exists and is still connected before every query, and replaces it
+ * when the spell checker service process has died or restarted, so a dead
+ * session can never silently swallow a request.
+ *
+ * <p>Note that on some devices the spell checker service process is frozen
+ * by aggressive battery optimisation shortly after each bind (the connection
+ * stays up, so this is not detected as a disconnection); users of such
+ * devices should exempt the spell checker's hosting app (e.g. Gboard) from
+ * background freezing in the system battery settings.
+ */
 public class SpellChecker {
     private static final int MAX_SUGGESTIONS = 8;
     private static final int MAX_SENTENCE_LENGTH = 200;
@@ -44,12 +64,35 @@ public class SpellChecker {
     private final SpellCheckerSessionListener spellCheckerListener = new SpellCheckerSessionListener() {
         @Override
         public void onGetSuggestions(final SuggestionsInfo[] arg0) {
+            // Result of a word-level getSuggestions() query (see checkWord).
+            if (arg0 != null && arg0.length > 0 && wordListener != null
+                    && wordText != null) {
+                SuggestionsInfo info = arg0[0];
+                int attributes = info.getSuggestionsAttributes();
+                int count = info.getSuggestionsCount();
+                Suggestion suggestion = null;
+                // A word the checker did not flag as in the dictionary is
+                // treated as misspelled. Some services report a typo with the
+                // RESULT_ATTR_LOOKS_LIKE_TYPO attribute, others with no
+                // attribute at all; requiring the dictionary bit to be clear
+                // covers both without depending on the suggestion count.
+                if ((attributes & SuggestionsInfo.RESULT_ATTR_IN_THE_DICTIONARY) == 0
+                        && isPotentialWord(wordText)) {
+                    suggestion = new Suggestion(wordText, wordOffset);
+                    for (int i = 0; i < count; i++) {
+                        suggestion.results.add(info.getSuggestionAt(i));
+                    }
+                }
+                SpellingSuggestionsReadyListener listener = wordListener;
+                wordListener = null;
+                listener.suggestionsReady(suggestion);
+            }
         }
 
         /**
          * Callback for
          * {@link SpellCheckerSession#getSentenceSuggestions(TextInfo[], int)}
-         * 
+         *
          * @param results
          *            an array of {@link SentenceSuggestionsInfo}s. These
          *            results are suggestions for {@link TextInfo}s queried by
@@ -59,54 +102,87 @@ public class SpellChecker {
         @Override
         @SuppressLint("NewApi")
         public void onGetSentenceSuggestions(SentenceSuggestionsInfo[] arg0) {
-            if (arg0.length == 1) {
-                SentenceSuggestionsInfo ssi = arg0[0];
-                Suggestion results = null;
-                if (ssi != null) {
-                    int start = direction == Direction.LEFT ? ssi
-                            .getSuggestionsCount() - 1 : 0;
-                    int end = direction == Direction.LEFT ? -1 : ssi
-                            .getSuggestionsCount();
-                    int step = end < start ? -1 : 1;
-                    int i = start;
-                    while (i != end && results == null) {
-                        if (isDirection(direction, cursor, ssi.getLengthAt(i),
-                                ssi.getOffsetAt(i) + startOffset)) {
-                            results = compileSuggestions(
-                                    ssi.getSuggestionsInfoAt(i),
-                                    ssi.getLengthAt(i), ssi.getOffsetAt(i)
-                                            + startOffset);
-                        }
-                        i += step;
+            // The framework returns one SentenceSuggestionsInfo per TextInfo
+            // queried, but third-party spell checker services have been known
+            // to return null, empty or extra entries. Tolerate those instead
+            // of throwing: an exception on the checker's callback thread
+            // (swallowed or not) would otherwise prevent every later
+            // misspelling announcement.
+            SentenceSuggestionsInfo ssi = (arg0 != null && arg0.length > 0)
+                    ? arg0[0] : null;
+            Suggestion results = null;
+            if (ssi != null) {
+                int start = direction == Direction.LEFT ? ssi
+                        .getSuggestionsCount() - 1 : 0;
+                int end = direction == Direction.LEFT ? -1 : ssi
+                        .getSuggestionsCount();
+                int step = end < start ? -1 : 1;
+                int i = start;
+                while (i != end && results == null) {
+                    int offset = ssi.getOffsetAt(i) + startOffset;
+                    int length = ssi.getLengthAt(i);
+                    boolean matched = isDirection(direction, cursor, length,
+                            offset);
+                    if (matched) {
+                        results = compileSuggestions(
+                                ssi.getSuggestionsInfoAt(i), length, offset);
                     }
+                    i += step;
                 }
+            }
 
-                boolean moreToExpand = expandOffsets(true);
-                if (results != null || !moreToExpand) {
-                    listener.suggestionsReady(results);
-                } else {
-                    doSpellCheck();
-                }
+            boolean moreToExpand = expandOffsets(true);
+            if (results != null || !moreToExpand) {
+                listener.suggestionsReady(results);
             } else {
-                throw new IllegalArgumentException(
-                        "Only supports one texinfo - got : " + arg0.length);
+                doSpellCheck();
             }
         }
     };
 
-    private final SpellCheckerSession spellChecker;
+    private final Context context;
+    private SpellCheckerSession spellCheckerSession;
     private SpellingSuggestionsReadyListener listener;
     private int cursor;
     private Direction direction;
     private String text;
     private int startOffset;
     private int endOffset;
+    // State for the word-level getSuggestions() path (see checkWord).
+    private SpellingSuggestionsReadyListener wordListener;
+    private String wordText;
+    private int wordOffset;
 
     public SpellChecker(Context context) {
-        final TextServicesManager tsm = (TextServicesManager) context
-                .getSystemService(Context.TEXT_SERVICES_MANAGER_SERVICE);
-        spellChecker = tsm.newSpellCheckerSession(null, null,
-                spellCheckerListener, true);
+        this.context = context;
+        ensureSpellCheckerSession();
+    }
+
+    /**
+     * Make sure the spell checker session is alive before a query is sent,
+     * creating a new one if it is missing or its connection to the spell
+     * checker service has been lost (for example when the service process
+     * was killed or restarted by the system).
+     *
+     * <p>This is checked before every request so that a dead session can
+     * never silently swallow a query. The session is otherwise persistent
+     * for the whole input session; the underlying service binding is reused
+     * across queries.
+     */
+    private synchronized void ensureSpellCheckerSession() {
+        if (spellCheckerSession == null
+                || spellCheckerSession.isSessionDisconnected()) {
+            if (spellCheckerSession != null) {
+                spellCheckerSession.close();
+                spellCheckerSession = null;
+            }
+            final TextServicesManager tsm = (TextServicesManager) context
+                    .getSystemService(Context.TEXT_SERVICES_MANAGER_SERVICE);
+            if (tsm != null) {
+                spellCheckerSession = tsm.newSpellCheckerSession(null, null,
+                        spellCheckerListener, true);
+            }
+        }
     }
 
     public boolean checkSpelling(SpellingSuggestionsReadyListener listener,
@@ -126,24 +202,60 @@ public class SpellChecker {
 
     @SuppressLint("NewApi")
     private void doSpellCheck() {
-        spellChecker.cancel();
+        ensureSpellCheckerSession();
+        if (spellCheckerSession == null) {
+            listener.suggestionsReady(null);
+            return;
+        }
+        spellCheckerSession.cancel();
 
         // Append a space (" ") to the input string to the spelling checker.
         // This resolves some edge cases like a word followed by a period
         // without a following space.
-        spellChecker.getSentenceSuggestions(
-                new TextInfo[] { new TextInfo(text.substring(startOffset,
-                        endOffset) + " ") }, MAX_SUGGESTIONS);
+        String submitted = text.substring(startOffset, endOffset) + " ";
+        spellCheckerSession.getSentenceSuggestions(
+                new TextInfo[] { new TextInfo(submitted) }, MAX_SUGGESTIONS);
+    }
+
+    /**
+     * Check a single word directly with the platform's word-level spell
+     * checker ({@link SpellCheckerSession#getSuggestions}). This is the API
+     * that keyboard apps actually use; the sentence-level API
+     * ({@code getSentenceSuggestions}) is not answered by every spell checker
+     * service on every device.
+     *
+     * @param listener Receives the {@link Suggestion} when the word is
+     *            misspelled, or {@code null} when it is spelled correctly.
+     * @param word The word to check.
+     * @param offset The position of the word in the current text.
+     * @return true if the query was sent, false if the word is empty or no
+     *         spell checker session could be created.
+     */
+    public boolean checkWord(SpellingSuggestionsReadyListener listener,
+            String word, int offset) {
+        if (word.length() == 0) {
+            return false;
+        }
+        ensureSpellCheckerSession();
+        if (spellCheckerSession == null) {
+            return false;
+        }
+        this.wordListener = listener;
+        this.wordText = word;
+        this.wordOffset = offset;
+        spellCheckerSession.getSuggestions(new TextInfo(word), MAX_SUGGESTIONS);
+        return true;
     }
 
     public void destroy() {
-        if (spellChecker != null) {
-            spellChecker.close();
+        if (spellCheckerSession != null) {
+            spellCheckerSession.close();
+            spellCheckerSession = null;
         }
     }
 
     public boolean isSpellCheckAvailable() {
-        return spellChecker != null;
+        return spellCheckerSession != null;
     }
 
     private Suggestion compileSuggestions(SuggestionsInfo suggestionInfo,

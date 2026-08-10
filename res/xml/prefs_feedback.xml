@@ -37,14 +37,14 @@
              android:title="@string/pref_haptic_feedback_title"
              android:summary="@string/pref_haptic_feedback_summary"
              android:defaultValue="true" />
+         <Preference
+             android:key="@string/pref_haptic_events_key"
+             android:title="@string/pref_haptic_events_title"
+             android:summary="@string/pref_haptic_events_summary"
+             android:dependency="@string/pref_haptic_feedback_key" />
          <CheckBoxPreference
              android:key="@string/pref_echo_passwords_key"
              android:title="@string/speak_passwords"
              android:summary="@string/pref_echo_passwords_summary"
              android:defaultValue="@string/pref_echo_passwords_default" />
-         <CheckBoxPreference
-             android:key="@string/pref_echo_misspellings_key"
-             android:title="@string/pref_echo_misspellings_title"
-             android:summary="@string/pref_echo_misspellings_summary"
-             android:defaultValue="@string/pref_echo_misspellings_default" />
 </PreferenceScreen>
