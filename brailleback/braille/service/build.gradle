@@ -1,0 +1,80 @@
+plugins {
+    id 'com.android.library'
+}
+
+android {
+    namespace 'com.googlecode.eyesfree.braille.service'
+    compileSdk 36
+
+    defaultConfig {
+        minSdk 24
+        targetSdk 36
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        ndkVersion "27.3.13750724"
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    buildFeatures {
+        aidl true
+        buildConfig true
+    }
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+            returnDefaultValues = true
+        }
+    }
+/**
+ * This nested sourceSets block points the source code directories to the
+ * existing folders in the project, instead of using the default new
+ * organization.
+ */
+    sourceSets {
+        main {
+            manifest.srcFile 'AndroidManifest.xml'
+            java.srcDirs = ['src']
+            resources.srcDirs = ['src']
+            aidl.srcDirs = ['src']
+            renderscript.srcDirs = ['src']
+            res.srcDirs = ['res']
+            assets.srcDirs = ['assets']
+        }
+
+        /**
+         * Move the build types to build-types/<type>
+         * For instance, build-types/debug/java, build-types/debug/AndroidManifest.xml, ...
+         * This moves them out of them default location under src/<type>/... which would
+         * conflict with src/ being used by the main source set.
+         * Adding new build types or product flavors should be accompanied
+         * by a similar customization.
+         */
+        debug.setRoot('build-types/debug')
+        release.setRoot('build-types/release')
+    }
+    buildTypes {
+        debug {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt'
+            consumerProguardFiles 'lib-proguard-rules.txt'
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt'
+            consumerProguardFiles 'lib-proguard-rules.txt'
+        }
+    }
+    externalNativeBuild {
+        ndkBuild {
+            path file('jni/Android.mk')
+        }
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation project(':brailleback:client')
+    androidTestImplementation 'androidx.test:runner:1.4.0'
+    androidTestImplementation 'com.android.support.test:rules:1.0.2'
+}

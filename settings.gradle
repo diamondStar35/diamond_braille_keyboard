@@ -1,0 +1,26 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+    plugins {
+        id 'com.android.application' version '8.11.1'
+        id 'com.android.library' version '8.11.1'
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "SoftBrailleKeyboard"
+
+include ':brailleback:service'
+project(':brailleback:service').projectDir = new File('brailleback/braille/service')
+
+include ':brailleback:client'
+project(':brailleback:client').projectDir = new File('brailleback/braille/client')

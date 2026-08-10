@@ -1,0 +1,44 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+            <string-array name="braille_tables">
+        <item>af-g2</item><item>akk-g1</item><item>akk-g1-akkborger</item><item>akk-g1-3</item><item>akk-g1-4</item><item>ar-g1</item><item>ar-g2</item><item>ar-comp8</item><item>as-g1</item><item>as-IN-g1</item><item>aw-IN-g1</item><item>awa-g1</item><item>ba-g1</item><item>be-g1</item><item>be-g1-2</item><item>be-comp8</item><item>be-IN-g1</item><item>bg-g1</item><item>bg-g1-2</item><item>bg-comp8</item><item>bh-g1</item><item>bh-g1-2</item><item>bn-g1</item><item>bo-g1</item><item>bo-comp8</item><item>br-IN-g1</item><item>bra-g1</item><item>ca-g1</item><item>ca-g1-2</item><item>chr-g1</item><item>ckb-g1</item><item>ckb-g1-2</item><item>cmn-CN-g1</item><item>cmn-CN-g1-cmntwocell</item><item>cmn-TW-g1</item><item>cop-g1</item><item>cop-comp8</item><item>cs-g1</item><item>cs-comp8</item><item>cy-g1</item><item>cy-g2</item><item>cy-g2-2</item><item>da-g1</item><item>da-g1-ddp</item><item>da-g1-3</item><item>da-g1-4</item><item>da-g1-5</item><item>da-g2</item><item>da-g2-ddp</item><item>da-g2-3</item><item>da-comp8</item><item>da-comp8-ddp</item><item>da-comp8-3</item><item>da-comp8-4</item><item>da-comp8-5</item><item>da-comp8-6</item><item>da-comp8-7</item><item>de-comp6</item><item>de-g0</item><item>de-g0-2</item><item>de-g1</item><item>de-g1-2</item><item>de-g2</item><item>de-g2-2</item><item>de-comp8</item><item>dra-g1</item><item>dra-comp8</item><item>el-g1</item><item>en-g1</item><item>en-g2</item><item>en-g3</item><item>en-CA-comp8</item><item>en-GB-g1</item><item>en-GB-g2</item><item>en-GB-g2-bauk</item><item>en-GB-comp8</item><item>en-IN-g1</item><item>en-US-comp6</item><item>en-US-g1</item><item>en-US-g2</item><item>en-US-g2-ebae</item><item>en-US-comp8</item><item>en-US-comp8-2</item><item>eo-g1</item><item>eo-g1-2</item><item>es-g1</item><item>es-g1-2</item><item>es-g2</item><item>es-comp8</item><item>es-NO-g1</item><item>et-g1</item><item>et-comp8</item><item>fa-g1</item><item>fa-comp8</item><item>fi-g1</item><item>fi-comp8</item><item>fil-g2</item><item>fr-g1</item><item>fr-g2</item><item>fr-comp8</item><item>ga-g1</item><item>ga-g2</item><item>gd-g1</item><item>gd-comp8</item><item>gez-g1</item><item>gon-g1</item><item>gon-g1-2</item><item>grc-EN-g1</item><item>grc-EN-g1-grcinternationalen</item><item>grc-ES-g1</item><item>gu-g1</item><item>gu-IN-g1</item><item>haw-g1</item><item>hbo-g1</item><item>hbo-g1-ihbcmcallister</item><item>hbo-g1-katz</item><item>he-comp8</item><item>he-IL-g1</item><item>hi-g1</item><item>hi-IN-g1</item><item>hr-g1</item><item>hr-g1-2</item><item>hr-comp8</item><item>hr-comp8-2</item><item>hu-g1</item><item>hu-g2</item><item>hu-comp8</item><item>hy-g1</item><item>hy-comp8</item><item>is-g1</item><item>is-g1-2</item><item>it-g1</item><item>it-comp8</item><item>iu-g1</item><item>ja-g1</item><item>ja-comp8</item><item>ja-comp8-2</item><item>ka-g1</item><item>ka-IN-g1</item><item>kha-g1</item><item>kk-g1</item><item>km-g1</item><item>kmr-g0</item><item>kn-g1</item><item>ko-g1</item><item>ko-g1-2</item><item>ko-g2</item><item>ko-g2-2</item><item>kok-g1</item><item>kok-g1-2</item><item>kru-g1</item><item>kru-g1-2</item><item>ks-IN-g1</item><item>lg-g1</item><item>lo-g1</item><item>lt-g1</item><item>lt-g1-2</item><item>lt-comp8</item><item>lv-g1</item><item>lv-g1-2</item><item>mi-g1</item><item>mk-g1</item><item>ml-g1</item><item>ml-IN-g1</item><item>mn-comp8</item><item>mn-comp8-2</item><item>mn-IN-g1</item><item>mni-g1</item><item>mr-g1</item><item>mr-IN-g1</item><item>ms-g2</item><item>mt-g1</item><item>mt-comp8</item><item>mun-g1</item><item>mun-g1-2</item><item>mwr-g1</item><item>mwr-g1-2</item><item>my-g1</item><item>my-g2</item><item>ne-g1</item><item>ne-g1-2</item><item>nl-g0</item><item>nl-comp8</item><item>no-g0</item><item>no-g1</item><item>no-g1-2</item><item>no-g2</item><item>no-g3</item><item>no-comp8</item><item>no-comp8-2</item><item>no-comp8-3</item><item>np-IN-g1</item><item>ny-g1</item><item>or-g1</item><item>or-IN-g1</item><item>ovd-g0</item><item>ovd-comp8</item><item>pa-g1</item><item>pi-g1</item><item>pi-g1-2</item><item>pl-g1</item><item>pl-g1-2</item><item>pl-comp8</item><item>pt-comp6</item><item>pt-g1</item><item>pt-g2</item><item>pt-g2-2</item><item>pt-comp8</item><item>pu-IN-g1</item><item>ro-g0</item><item>ro-g1</item><item>ro-comp8</item><item>ru-comp6</item><item>ru-g1</item><item>ru-comp8</item><item>rw-g1</item><item>sa-g1</item><item>sa-IN-g1</item><item>sah-g1</item><item>sd-g1</item><item>se-g1</item><item>si-IN-g1</item><item>sin-g1</item><item>sk-g1</item><item>sk-g1-2</item><item>sk-g1-3</item><item>sl-comp8</item><item>sl-SI-g1</item><item>smi-g0</item><item>smi-comp8</item><item>sr-g1</item><item>st-g1</item><item>st-g2</item><item>sv-g0</item><item>sv-g0-2</item><item>sv-g0-3</item><item>sv-g1</item><item>sv-g1-2</item><item>sv-g2</item><item>sv-g2-2</item><item>sv-comp8</item><item>sv-comp8-2</item><item>sv-comp8-3</item><item>sv-comp8-4</item><item>sv-comp8-5</item><item>sv-comp8-6</item><item>sv-comp8-7</item><item>sv-comp8-8</item><item>sw-KE-g1</item><item>sw-KE-g1-2</item><item>sw-KE-g1-3</item><item>sw-KE-g1-4</item><item>sw-KE-g1-5</item><item>sw-KE-g2</item><item>syc-g1</item><item>ta-g1</item><item>ta-g1-2</item><item>ta-comp8</item><item>te-g1</item><item>te-IN-g1</item><item>th-g0</item><item>th-g1</item><item>th-g2</item><item>th-comp8</item><item>tr-g1</item><item>tr-g1-2</item><item>tr-g2</item><item>tr-comp8</item><item>tr-comp8-2</item><item>tt-g1</item><item>uga-g1</item><item>uk-g1</item><item>uk-g1-2</item><item>uk-comp8</item><item>ur-g1</item><item>ur-g2</item><item>uz-g1</item><item>ve-g1</item><item>ve-g2</item><item>vi-g0</item><item>vi-g1</item><item>vi-g1-vietnam</item><item>vi-g2</item><item>vi-comp8</item><item>xh-g2</item><item>yi-g1</item><item>yue-HK-g1</item><item>zh-CHN-g1</item><item>ipa</item><item>af-g1</item><item>boxes</item><item>cuneiform-compact</item><item>cuneiform</item><item>de-chess</item><item>en-chess</item><item>en-nabcc</item><item>en-ueb-math</item><item>en-us-interline</item><item>en-us-mathtext</item><item>en-CA-g1</item><item>eo-g1-x-system</item><item>ethio-g1</item><item>kh-in-g1</item><item>nso-za-g1</item><item>nso-za-g2</item><item>ru-litbrl-detailed</item><item>ru-litbrl</item><item>sr-Cyrl</item><item>tsn-za-g1</item><item>tsn-za-g2</item><item>unicode-braille</item><item>xh-za-g1</item><item>zhcn-cbs</item><item>zu-za-g1</item><item>zu-za-g2</item></string-array>
+    <string-array name="braille_types">
+        <item>@string/grade_computer</item>
+        <item>@string/grade_literary</item>
+    </string-array>
+    <string-array name="default_keyboard_entry_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+    </string-array>
+    <string-array name="default_keyboard_entries">
+        <item>@string/keyboard_auto</item>
+        <item>@string/keyboard_vertical</item>
+        <item>@string/keyboard_horizontal</item>
+    </string-array>
+    <string-array name="keyboard_style_entry_values">
+        <item>@string/pref_keyboard_style_normal_value</item>
+        <item>@string/pref_keyboard_style_slate_value</item>
+        <item>@string/pref_keyboard_style_top_bottom_value</item>
+    </string-array>
+    <string-array name="keyboard_style_entries">
+        <item>@string/keyboard_style_normal</item>
+        <item>@string/keyboard_style_slate</item>
+        <item>@string/keyboard_style_top_bottom</item>
+    </string-array>
+    <string-array name="braille_types_values">
+        <item>0</item>
+        <item>1</item>
+    </string-array>
+    <string-array name="swipe_sensitivity_entries">
+        <item>@string/low</item>
+        <item>@string/medium</item>
+        <item>@string/high</item>
+    </string-array>
+    <string-array name="swipe_sensitivity_values">
+        <item>75</item>
+        <item>@string/default_swipe_sensitivity</item>
+        <item>25</item>
+    </string-array>
+    <string-array name="empty_array" />
+</resources>

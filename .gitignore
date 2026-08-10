@@ -1,0 +1,17 @@
+# Build artifacts
+build/
+.gradle/
+*.apk
+*.aab
+
+# Local configuration
+local.properties
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Python tooling
+__pycache__/
+*.pyc

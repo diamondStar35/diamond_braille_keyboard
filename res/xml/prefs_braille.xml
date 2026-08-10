@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (C) 2011 Google Inc.
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+          http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+
+    <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+         android:title="@string/pref_category_braille_title">
+         <ListPreference
+             android:key="@string/pref_braille_type_key"
+             android:title="@string/grade"
+             android:summary="@string/pref_braille_grade_summary"
+             android:entries="@array/braille_types"
+             android:entryValues="@array/braille_types_values"
+             android:defaultValue="@string/pref_braille_type_default" />
+         <!-- The computer and literary table lists are multi-select.  The
+              checked tables become the ones available for switching between
+              while typing (two finger swipe down), and they also populate the
+              "Default braille table" list in the keyboard settings. -->
+         <MultiSelectListPreference
+             android:key="@string/pref_braille_computer_table_key"
+             android:title="@string/pref_default_computer_braille_table_title"
+             android:summary="@string/pref_computer_braille_table_multi_summary"
+             android:defaultValue="@array/empty_array" />
+         <MultiSelectListPreference
+             android:key="@string/pref_braille_literary_table_key"
+             android:title="@string/pref_default_literary_braille_table_title"
+             android:summary="@string/pref_literary_braille_table_multi_summary"
+             android:defaultValue="@array/empty_array" />
+</PreferenceScreen>

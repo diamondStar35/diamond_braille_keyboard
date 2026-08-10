@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.VIBRATE"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+
+    <!-- Required on Android 11+ so the settings screen can list all installed
+         TTS engines instead of only the default one. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
+    <application
+        tools:replace="android:icon,android:label"
+        android:allowBackup="true"
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/AppTheme" >
+        <activity
+            android:name="com.dalton.braillekeyboard.MainActivity"
+            android:exported="true"
+            android:label="@string/app_name" >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".PreferenceIME" android:label="@string/settings_name" android:theme="@style/PrefsTheme" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+            </intent-filter>
+        </activity>
+        <activity android:name=".SectionActivity" android:theme="@style/PrefsTheme" android:exported="false" />
+        <activity android:name=".IntentActivity" android:label="" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+            </intent-filter>
+        </activity>
+        <service android:name="com.dalton.braillekeyboard.BrailleIME"
+            android:label="@string/braille_ime"
+            android:exported="true"
+            android:directBootAware="true"
+            android:permission="android.permission.BIND_INPUT_METHOD"
+        >
+            <meta-data android:name="android.view.im" android:resource="@xml/method"/>
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>            
+        </service>
+        <service android:enabled="true" android:name="com.googlecode.eyesfree.braille.service.translate.TranslatorService" android:directBootAware="true" />
+
+        <!--
+          Accessibility service that passes the whole screen through to the
+          Braille keyboard while it is shown, so the keyboard can be used with
+          TalkBack turned on (Android 11+). See AccessibilityService.
+        -->
+        <service
+            android:name="com.dalton.braillekeyboard.AccessibilityService"
+            android:label="@string/accessibility_service_name"
+            android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" >
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibilityservice" />
+        </service>
+    </application>
+</manifest>

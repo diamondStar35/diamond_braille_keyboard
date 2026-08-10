@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:paddingLeft="0dp"
+    android:paddingRight="0dp"
+    android:orientation="vertical" >
+    <Button style="@android:style/TextAppearance.Large"
+        android:id="@+id/btn_enable"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/button_keyboard_settings"
+        android:onClick="onKeyboardSettings" />
+    <Button style="@android:style/TextAppearance.Large"
+        android:id="@+id/btn_accessibility"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/button_accessibility_settings"
+        android:onClick="onAccessibilitySettings" />
+    <Button style="@android:style/TextAppearance.Large" 
+        android:id="@+id/btn_default_keyboard"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/button_choose_default_keyboard"
+        android:onClick="onDefaultInputMethod" />
+    <EditText
+        android:id="@+id/txt_practice"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:inputType="textCapSentences|textMultiLine"
+        android:hint="@string/try_box" />
+    <Button style="@android:style/TextAppearance.Large" 
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_centerInParent="true"
+        android:text="@string/button_more_info"
+        android:onClick="onURL" />
+</LinearLayout>
