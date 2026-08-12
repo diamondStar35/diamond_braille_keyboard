@@ -36,6 +36,11 @@
              android:title="@string/pref_privacy_title"
              android:summary="@string/pref_privacy_summary"
              android:defaultValue="@string/pref_privacy_default" />
+         <CheckBoxPreference
+             android:key="@string/pref_lock_calibration_key"
+             android:title="@string/pref_lock_calibration_title"
+             android:summary="@string/pref_lock_calibration_summary"
+             android:defaultValue="@string/pref_lock_calibration_default" />
          <Preference
              android:key="@string/pref_customize_gestures_key"
              android:title="@string/pref_customize_gestures_title"

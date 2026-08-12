@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The log file is written to getExternalFilesDir(null), with internal
+         storage as a fallback, so expose both. The names must be unique:
+         FileProvider keys its roots by name, so duplicate names would make
+         the second root silently replace the first. -->
+    <external-files-path name="external_logs" path="." />
+    <files-path name="internal_logs" path="." />
+</paths>

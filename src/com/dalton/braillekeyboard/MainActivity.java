@@ -16,6 +16,7 @@
 
 package com.dalton.braillekeyboard;
 
+import java.io.File;
 import java.util.List;
 
 import android.content.Context;
@@ -31,8 +32,10 @@ import android.view.inputmethod.InputMethodInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.FileProvider;
 
 /**
  * This is the MainActivity of the application.
@@ -111,8 +114,47 @@ public class MainActivity extends AppCompatActivity {
             startActivity(intent);
         } else if (id == R.id.action_abbreviation_editor) {
             startActivity(new Intent(this, AbbreviationEditorActivity.class));
+        } else if (id == R.id.action_share_logs) {
+            shareLogs();
+            return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    // Send the diagnostic log file to another app through the share sheet.
+    private void shareLogs() {
+        File logFile = Diagnostics.getLogFile(this);
+        if (logFile.exists() && logFile.length() > 0) {
+            try {
+                // Record that the logs were shared and refresh the device
+                // snapshot so the file the user sends is as complete as
+                // possible.
+                Diagnostics.logDeviceInfo(this);
+                Diagnostics.log(this, "log file shared from the main screen");
+                // Make sure the lines above are on disk before the file is
+                // handed to the share sheet.
+                Diagnostics.flush();
+                Uri uri = FileProvider.getUriForFile(this,
+                        getPackageName() + ".fileprovider", logFile);
+                Intent intent = new Intent(Intent.ACTION_SEND);
+                intent.setType("text/plain");
+                intent.putExtra(Intent.EXTRA_SUBJECT,
+                        getString(R.string.app_name) + " log file");
+                intent.putExtra(Intent.EXTRA_STREAM, uri);
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                startActivity(Intent.createChooser(intent,
+                        getString(R.string.action_share_logs)));
+            } catch (Exception e) {
+                // Sharing the log file must never crash the app (for example
+                // if the file cannot be exposed through the FileProvider).
+                Diagnostics.log(this, "share logs failed: " + e);
+                Toast.makeText(this, R.string.share_logs_failed,
+                        Toast.LENGTH_LONG).show();
+            }
+        } else {
+            Toast.makeText(this, R.string.no_log_file, Toast.LENGTH_LONG)
+                    .show();
+        }
     }
 
     // Update the state of buttons (clickable) or not and decide whether to show

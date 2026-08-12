@@ -23,4 +23,9 @@
              android:entries="@array/swipe_sensitivity_entries"
              android:entryValues="@array/swipe_sensitivity_values"
              android:defaultValue="@string/default_swipe_sensitivity" />
+         <CheckBoxPreference
+             android:key="@string/pref_logging_key"
+             android:title="@string/pref_logging_title"
+             android:summary="@string/pref_logging_summary"
+             android:defaultValue="@string/pref_logging_default" />
 </PreferenceScreen>

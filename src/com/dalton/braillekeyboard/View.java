@@ -29,6 +29,7 @@ import android.graphics.Paint.Style;
 import android.graphics.Rect;
 import androidx.core.view.MotionEventCompat;
 import android.os.Build;
+import android.os.Vibrator;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
@@ -131,6 +132,7 @@ public class View extends android.view.View implements PadController.Listener {
     private KeyboardListener listener;
     private boolean shrinkKeyboard;
     private Speech speech;
+    private final Vibrator vibrator;
 
     public View(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -138,6 +140,7 @@ public class View extends android.view.View implements PadController.Listener {
         circlePaint = new Paint();
         accessibilityManager = (AccessibilityManager) context
                 .getSystemService(Context.ACCESSIBILITY_SERVICE);
+        vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
         padController = new PadController(context, this);
         feedbackManager = new FeedbackManager(context);
     }
@@ -181,6 +184,7 @@ public class View extends android.view.View implements PadController.Listener {
         actionHandler = new ActionHandler(context);
         actionHandler.setCallback(actionListener);
         actionHandler.setKeyboardListener(listener);
+        logKeyboardState("keyboard initialised");
     }
 
     public void close() {
@@ -195,12 +199,26 @@ public class View extends android.view.View implements PadController.Listener {
     public void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
         setDisplayParams(w, h);
-        padController.loadDefaultPad(w, h);
+        padController.loadInitialPad(w, h);
+        logKeyboardState("size changed");
     }
 
     @Override
     public void onDraw(Canvas canvas) {
         super.onDraw(canvas);
+        if (padController.isManualCalibrating()) {
+            // During the guided calibration the next dot to touch is shown
+            // on the screen as well as spoken.
+            paint.setTextSize(50.0f);
+            String msg = getContext().getString(
+                    R.string.calibration_step,
+                    padController.getCurrentCalibrationStep() + 1);
+            canvas.drawText(msg, 50.0f, 100.0f, paint);
+            // Restore the label size used for the dot circles.
+            if (displayParams != null) {
+                paint.setTextSize(displayParams.textSize);
+            }
+        }
         if (!shrinkKeyboard
                 && displayParams != null
                 && Options.getBooleanPreference(
@@ -319,13 +337,41 @@ public class View extends android.view.View implements PadController.Listener {
         int id = MotionEventCompat.getPointerId(motionEvent, index);
         int x = (int) MotionEventCompat.getX(motionEvent, index);
         int y = (int) MotionEventCompat.getY(motionEvent, index);
+        int rawX = x;
+        int rawY = y;
 
         // Swap x and y if the view is being used perpendicular to it's intended
         // purpose see above.
         int tempX = x;
         x = displayParams.autoRotate || getWidth() >= getHeight() ? x : y;
         y = displayParams.autoRotate || getWidth() >= getHeight() ? y : tempX;
-        Swipe swipe;
+        Swipe swipe = Swipe.NONE;
+
+        // Record the touch in the diagnostic log so that reports of the
+        // keyboard not receiving touches can be traced.
+        if (action == MotionEvent.ACTION_DOWN
+                || action == MotionEvent.ACTION_POINTER_DOWN
+                || action == MotionEvent.ACTION_UP
+                || action == MotionEventCompat.ACTION_POINTER_UP
+                || action == MotionEvent.ACTION_CANCEL) {
+            logTouch(actionName(action), motionEvent, id, rawX, rawY, x, y);
+        }
+
+        // During a calibration every touch places the next dot instead of
+        // typing or gesturing.
+        if (padController.isManualCalibrating()) {
+            if (action == MotionEvent.ACTION_CANCEL) {
+                // The system cancelled the touch sequence (e.g. an incoming
+                // call or a system gesture), so don't leave the keyboard
+                // stuck in calibration mode.
+                padController.abortManualCalibration();
+            } else if (action == MotionEvent.ACTION_DOWN
+                    || action == MotionEvent.ACTION_POINTER_DOWN) {
+                padController.handleManualCalibrationTouch(x, y);
+            }
+            return true;
+        }
+
         switch (action) {
         case MotionEvent.ACTION_DOWN:
         case MotionEvent.ACTION_POINTER_DOWN:
@@ -333,15 +379,16 @@ public class View extends android.view.View implements PadController.Listener {
                 expandKeyboard();
             } else {
                 padController.onPointerDown(id, x, y);
+                // Holding three fingers still starts the guided calibration
+                // and holding every dot at once calibrates instantly.
+                padController.checkAndScheduleCalibration(width, height);
             }
             break;
         case MotionEvent.ACTION_HOVER_EXIT:
         case MotionEvent.ACTION_UP:
-            // The pad is deliberately NOT re-calibrated after gestures here.
-            // Auto-calibration drifts the dot keys away from the user's
-            // typing positions (e.g. dot 4 moving out of reach) when typing
-            // quickly, so the keyboard is only ever positioned by the manual
-            // calibration (holding three fingers on each side).
+            // A finger was lifted, so any pending calibration attempt is
+            // abandoned (the fingers must be held down without lifting).
+            padController.cancelCalibrationScheduled();
             if (padController.hasPad() && padController.hasPressedDots()) {
                 boolean swap = getHeight() > getWidth()
                         && !displayParams.autoRotate;
@@ -362,7 +409,13 @@ public class View extends android.view.View implements PadController.Listener {
                 }
                 padController.clearLastDotList();
             }
+            Diagnostics.log(getContext(), "gesture: swipe=" + swipe.name()
+                    + " handled=" + padController.isHandledSwipe());
             padController.reset();
+            // Nudge the dots towards where the user actually touches them,
+            // using the drift measured while typing. This is a no-op when
+            // the dot positions are locked (see "Lock dot positions").
+            padController.updateKeysAfterTyping();
 
             if (Options.getBooleanPreference(
                     getContext(),
@@ -386,21 +439,23 @@ public class View extends android.view.View implements PadController.Listener {
             }
             break;
         case MotionEventCompat.ACTION_POINTER_UP:
-            if (!padController.setPad(id, width, height)) {
-                padController.onPointerMove(id, x, y);
-                swipe = padController.resolveMultiFingerSwipe(getHeight() > getWidth() && !displayParams.autoRotate);
+            padController.cancelCalibrationScheduled();
+            padController.onPointerMove(id, x, y);
+            swipe = padController.resolveMultiFingerSwipe(getHeight() > getWidth() && !displayParams.autoRotate);
+            if (swipe != Swipe.NONE) {
+                actionHandler.handleSwipe(getContext(), swipe);
+            }
+            padController.setDots();
+            if (!padController.isHandledSwipe()) {
+                swipe = padController.resolveSingleSwipe(getHeight() > getWidth() && !displayParams.autoRotate);
                 if (swipe != Swipe.NONE) {
+                    // Hold one finger while swiping with another
                     actionHandler.handleSwipe(getContext(), swipe);
                 }
-                padController.setDots();
-                if (!padController.isHandledSwipe()) {
-                    swipe = padController.resolveSingleSwipe(getHeight() > getWidth() && !displayParams.autoRotate);
-                    if (swipe != Swipe.NONE) {
-                        // Hold one finger while swiping with another
-                        actionHandler.handleSwipe(getContext(), swipe);
-                    }
-                }
             }
+            Diagnostics.log(getContext(), "gesture(pointer_up): swipe="
+                    + swipe.name() + " handled="
+                    + padController.isHandledSwipe());
             break;
         default:
         }
@@ -494,6 +549,120 @@ public class View extends android.view.View implements PadController.Listener {
         }
     }
 
+    // Write the keyboard geometry, orientation and dot placement to the
+    // diagnostic log, used to diagnose reports of the keyboard not
+    // responding or the dots not being where the user expects them.
+    private void logKeyboardState(String reason) {
+        if (!Diagnostics.isEnabled(getContext())) {
+            return;
+        }
+        StringBuilder sb = new StringBuilder(reason);
+        sb.append(" view=").append(getWidth()).append('x')
+                .append(getHeight());
+        int[] location = new int[2];
+        getLocationOnScreen(location);
+        sb.append(" onScreen=(").append(location[0]).append(',')
+                .append(location[1]).append(")-(")
+                .append(location[0] + getWidth()).append(',')
+                .append(location[1] + getHeight()).append(')');
+        Rect frame = new Rect();
+        getWindowVisibleDisplayFrame(frame);
+        sb.append(" window=").append(frame.toShortString());
+        sb.append(" rotation=")
+                .append(Diagnostics.rotationLabel(getContext()));
+        sb.append(" invert=").append(Options.getBooleanPreference(
+                getContext(), R.string.pref_keyboard_invert_key,
+                Boolean.parseBoolean(getContext().getString(
+                        R.string.pref_keyboard_invert_default))));
+        sb.append(" autoRotate=")
+                .append(displayParams != null ? displayParams.autoRotate
+                        : '?');
+        if (!padController.hasPad()) {
+            sb.append(" pad=null");
+        } else {
+            sb.append(" padType=").append(padController.getPadTypeName());
+            List<Coords> keys = padController.getKeys();
+            sb.append(" dots=");
+            for (int i = 0; i < keys.size(); i++) {
+                Coords key = keys.get(i);
+                sb.append(i + 1).append('(').append(key.x).append(',')
+                        .append(key.y).append(')');
+                if (i + 1 < keys.size()) {
+                    sb.append(' ');
+                }
+            }
+        }
+        Diagnostics.log(getContext(), sb.toString());
+    }
+
+    // Write a single touch to the diagnostic log with both the raw screen
+    // coordinates and the coordinates mapped onto the keyboard.
+    private void logTouch(String event, MotionEvent motionEvent, int id,
+            int rawX, int rawY, int x, int y) {
+        StringBuilder sb = new StringBuilder("touch ");
+        sb.append(event).append(" ptr=")
+                .append(MotionEventCompat.getPointerCount(motionEvent))
+                .append(" id=").append(id).append(" raw=(").append(rawX)
+                .append(',').append(rawY).append(") mapped=(").append(x)
+                .append(',').append(y).append(')');
+        if (padController.isManualCalibrating()) {
+            sb.append(" calibrating");
+        }
+        sb.append(" pressed=0x").append(Integer
+                .toHexString(padController.getPressedDotString()));
+        sb.append(nearestDot(x, y));
+        Diagnostics.log(getContext(), sb.toString());
+    }
+
+    // The dot closest to a touch and its distance, used to see whether the
+    // dot positions match where the user actually touches the screen.
+    private String nearestDot(int x, int y) {
+        if (!padController.hasPad()) {
+            return "";
+        }
+        int bestIndex = -1;
+        int bestDistance = Integer.MAX_VALUE;
+        List<Coords> keys = padController.getKeys();
+        for (int i = 0; i < keys.size(); i++) {
+            Coords key = keys.get(i);
+            int dx = key.x - x;
+            int dy = key.y - y;
+            int distance = dx * dx + dy * dy;
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestIndex = i;
+            }
+        }
+        if (bestIndex < 0) {
+            return "";
+        }
+        return " near=dot" + (bestIndex + 1) + "("
+                + Math.round(Math.sqrt(bestDistance)) + "px)";
+    }
+
+    private static String actionName(int action) {
+        switch (action) {
+        case MotionEvent.ACTION_DOWN:
+            return "down";
+        case MotionEventCompat.ACTION_POINTER_DOWN:
+            return "pointer_down";
+        case MotionEvent.ACTION_UP:
+            return "up";
+        case MotionEventCompat.ACTION_POINTER_UP:
+            return "pointer_up";
+        case MotionEvent.ACTION_CANCEL:
+            return "cancel";
+        case MotionEvent.ACTION_MOVE:
+            return "move";
+        case MotionEventCompat.ACTION_HOVER_MOVE:
+            return "hover_move";
+        case MotionEvent.ACTION_HOVER_EXIT:
+            return "hover_exit";
+        default:
+            return "action_" + action;
+        }
+    }
+
     private void setDisplayParams(int w, int h) {
         final int CIRCLE_RADIUS = 40;
         final int STROKE_WIDTH = 8;
@@ -537,6 +706,28 @@ public class View extends android.view.View implements PadController.Listener {
     public void speak(int stringRes) {
         speech.speak(getContext(), getContext().getString(stringRes),
                 Speech.QUEUE_FLUSH);
+    }
+
+    @Override
+    public void speak(int stringRes, int queueMode) {
+        speech.speak(getContext(), getContext().getString(stringRes),
+                queueMode);
+    }
+
+    @Override
+    public void speak(int stringRes, int queueMode, Object... args) {
+        speech.speak(getContext(), getContext().getString(stringRes, args),
+                queueMode);
+    }
+
+    @Override
+    public void speak(CharSequence text, int queueMode) {
+        speech.speak(getContext(), text, queueMode);
+    }
+
+    @Override
+    public void vibrate(long milliseconds) {
+        vibrator.vibrate(milliseconds);
     }
 
     @Override

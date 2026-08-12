@@ -126,30 +126,39 @@ public class Speech {
             doShutdown();
         }
 
-        tts = new TextToSpeech(context, new TextToSpeech.OnInitListener() {
-            @SuppressLint("NewApi")
-            @Override
-            public void onInit(int status) {
-                if (status == TextToSpeech.SUCCESS) {
-                    if (android.os.Build.VERSION.SDK_INT
-                            >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                        int usage = useAccessibilityVolume
-                                ? android.media.AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY
-                                : android.media.AudioAttributes.USAGE_MEDIA;
-                        android.media.AudioAttributes audioAttributes =
-                                new android.media.AudioAttributes.Builder()
-                                        .setUsage(usage)
-                                        .setContentType(
-                                                android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
-                                        .build();
-                        tts.setAudioAttributes(audioAttributes);
+        // Keep a local reference to the engine being initialised: onInit
+        // runs asynchronously, and shutdown() may have cleared or replaced
+        // the static tts field by the time it fires (for example when the
+        // user presses Home while the TTS engine is still starting up). Only
+        // configure the engine when it is still the current one.
+        final TextToSpeech[] engineRef = new TextToSpeech[1];
+        engineRef[0] = new TextToSpeech(context,
+                new TextToSpeech.OnInitListener() {
+                    @SuppressLint("NewApi")
+                    @Override
+                    public void onInit(int status) {
+                        if (status == TextToSpeech.SUCCESS
+                                && engineRef[0] == tts) {
+                            if (android.os.Build.VERSION.SDK_INT
+                                    >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                                int usage = useAccessibilityVolume
+                                        ? android.media.AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY
+                                        : android.media.AudioAttributes.USAGE_MEDIA;
+                                android.media.AudioAttributes audioAttributes =
+                                        new android.media.AudioAttributes.Builder()
+                                                .setUsage(usage)
+                                                .setContentType(
+                                                        android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                                                .build();
+                                engineRef[0].setAudioAttributes(audioAttributes);
+                            }
+                            canSpeak = true;
+                            setProgressListener();
+                            listener.ttsReady();
+                        }
                     }
-                    canSpeak = true;
-                    setProgressListener();
-                    listener.ttsReady();
-                }
-            }
-        }, engine);
+                }, engine);
+        tts = engineRef[0];
     }
 
     @SuppressLint("NewApi")

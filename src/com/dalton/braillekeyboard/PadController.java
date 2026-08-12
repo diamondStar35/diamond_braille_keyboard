@@ -4,26 +4,53 @@ import java.util.ArrayList;
 import java.util.List;
 
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 
 /**
  * Owns the state of the Braille pad: the current {@link Pad}, the dots
- * currently pressed down, the two-handed calibration bookkeeping and the
- * swipe resolution, together with the logic that positions the pad.
+ * currently pressed down, the calibration bookkeeping and the swipe
+ * resolution, together with the logic that positions the pad.
  *
  * <p>Extracted from {@link com.dalton.braillekeyboard.View} so the view is
  * left with touch dispatch, drawing and speech concerns while all pad state
  * lives here. The view feeds translated touch coordinates in through the
  * {@code onPointer*} methods and asks for swipes and dot patterns back.
+ *
+ * <p>Calibration is started by holding the fingers still for
+ * {@link #LONG_HOLD_DELAY}: holding three fingers starts the guided
+ * calibration where each subsequent touch places the next dot, while holding
+ * every dot of the keyboard at once calibrates instantly. A successful
+ * calibration is saved under a layout key specific to the current orientation
+ * and screen size and locks the dot positions so they cannot drift while
+ * typing. When unlocked, the pad nudges its dots towards where the user
+ * actually touches them (see {@link Pad#updateKeys}).
  */
 public class PadController {
     private static final byte NO_DOTS = 0;
     private static final long LONG_HOLD_DELAY = 1200;
+    private static final long QUICK_VIBRATION = 25;
+    private static final long MEDIUM_VIBRATION = 125;
+    private static final long LONG_VIBRATION = 300;
+    private static final int MOVE_CANCEL_DISTANCE = 40;
     private static final int MAX_DOTS = 8;
 
     /** Reports pad events back to the owning view. */
     public interface Listener {
         /** Speak a string resource. */
         void speak(int stringRes);
+
+        /** Speak a string resource with the given TTS queue mode. */
+        void speak(int stringRes, int queueMode);
+
+        /** Speak a formatted string resource with the given queue mode. */
+        void speak(int stringRes, int queueMode, Object... args);
+
+        /** Speak raw text with the given TTS queue mode. */
+        void speak(CharSequence text, int queueMode);
+
+        /** Vibrate for the given number of milliseconds. */
+        void vibrate(long milliseconds);
 
         /** Fire the calibration feedback event. */
         void emitCalibrate();
@@ -39,18 +66,29 @@ public class PadController {
 
         /** The number of dots of the active Braille table. */
         int dots();
+
+        /** Ask the owning view to redraw itself. */
+        void invalidate();
     }
 
     private final Context context;
     private final Listener listener;
 
     private final List<Coords> lastDotList = new ArrayList<Coords>();
+    private final List<Coords> manualCalibrationDots = new ArrayList<Coords>();
+    private final Handler calibrationHandler = new Handler(
+            Looper.getMainLooper());
+
     private Coords[] dotsDown = new Coords[MAX_DOTS];
     private Pad pad;
-    private long requiredTouchTime = 0;
     private boolean dot7;
     private boolean dot8;
     private boolean handledSwipe = false;
+    private Runnable calibrationRunnable;
+    private int currentCalibrationStep;
+    private boolean isManualCalibrating;
+    private int calibrationWidth;
+    private int calibrationHeight;
 
     public PadController(Context context, Listener listener) {
         this.context = context;
@@ -62,87 +100,323 @@ public class PadController {
      * fingers must be held down before a calibration attempt is accepted.
      */
     public void onPointerDown(int id, int x, int y) {
-        // store the time at which the user must hold their fingers down for
-        // if they want to calibrate. Only record the time for the first touch.
-        requiredTouchTime = requiredTouchTime == 0 ? System
-                .currentTimeMillis() + LONG_HOLD_DELAY : requiredTouchTime;
-
         if (!updatePointer(id, x, y, true) && id < dotsDown.length) {
             // add a new unique dot to the list of dots that were pushed.
             dotsDown[id] = new Coords(id, x, y);
         }
     }
 
-    /** Record a finger moving. */
+    /** Record a finger moving. Movement cancels any pending calibration. */
     public void onPointerMove(int id, int x, int y) {
+        for (int i = 0; i < dotsDown.length; i++) {
+            if (dotsDown[i] != null && dotsDown[i].id == id) {
+                // The calibration requires the fingers to be held still; any
+                // finger moving away from where it went down aborts it.
+                if (Math.abs(x - dotsDown[i].x) > MOVE_CANCEL_DISTANCE
+                        || Math.abs(y - dotsDown[i].y) > MOVE_CANCEL_DISTANCE) {
+                    cancelCalibrationScheduled();
+                }
+                break;
+            }
+        }
         updatePointer(id, x, y, false);
     }
 
     /**
-     * Attempt to complete a two-handed calibration using the finger that was
-     * just lifted. Returns true if the gesture was consumed by calibration.
+     * Schedule a calibration attempt if the current finger configuration is
+     * one of the two valid calibration starts: exactly three fingers down
+     * (guided one-by-one calibration) or every dot of the keyboard down
+     * (instant calibration). The attempt only completes if the fingers are
+     * still held after {@link #LONG_HOLD_DELAY}.
      */
-    public boolean setPad(int id, int width, int height) {
-        final int TOTAL_DOTS = 6;
-        final int ONE_SIDE = 3;
-        // For whatever reason we won't be able to set a pad
-        if (requiredTouchTime > System.currentTimeMillis()
-                || countDotsDown(dotsDown) != ONE_SIDE) {
-            return false;
+    public void checkAndScheduleCalibration(int width, int height) {
+        cancelCalibrationScheduled();
+        if (isManualCalibrating) {
+            return;
         }
-        if (lastDotList.size() != ONE_SIDE && lastDotList.size() != 0) {
-            lastDotList.clear();
-            return false;
+        calibrationWidth = width;
+        calibrationHeight = height;
+        int totalDots = listener.dots();
+        if (totalDots == -1) {
+            totalDots = 6;
         }
-
-        // Add the first three dots to the current dot list.
-        for (int i = 0; i < lastDotList.size(); i++) {
-            Coords coord = lastDotList.get(i);
-            dotsDown[ONE_SIDE + i] = new Coords(ONE_SIDE + id, coord.x,
-                    coord.y);
+        int dotsDownCount = countDotsDown(dotsDown);
+        boolean canStartStepByStep = dotsDownCount == 3;
+        boolean canStartInstant = dotsDownCount == totalDots;
+        if (!canStartStepByStep && !canStartInstant) {
+            return;
         }
-
-        if (countDotsDown(dotsDown) == TOTAL_DOTS) {
-            setDotsSevenEight(false, false);
-            Coords[] sixDots = new Coords[TOTAL_DOTS];
-
-            for (int i = 0, j = 0; i < dotsDown.length
-                    && j < sixDots.length; i++) {
-                if (dotsDown[i] != null) {
-                    int localX = dotsDown[i].getSecondX();
-                    int localY = dotsDown[i].getSecondY();
-                    sixDots[j++] = new Coords(localX, localY);
+        Diagnostics.log(context, "calibration attempt scheduled: "
+                + (canStartInstant ? "instant (" + dotsDownCount
+                        + " fingers)" : "guided (3 fingers)"));
+        final boolean instant = canStartInstant;
+        final boolean stepByStep = canStartStepByStep;
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                if (isManualCalibrating) {
+                    return;
                 }
+                int currentCount = countDotsDown(dotsDown);
+                if (instant) {
+                    int total = listener.dots();
+                    if (total == -1) {
+                        total = 6;
+                    }
+                    if (currentCount == total) {
+                        isManualCalibrating = true;
+                        currentCalibrationStep = 0;
+                        manualCalibrationDots.clear();
+                        finishManualCalibrationInstant(-1, calibrationWidth,
+                                calibrationHeight);
+                    }
+                } else if (stepByStep && currentCount == 3) {
+                    isManualCalibrating = true;
+                    currentCalibrationStep = 0;
+                    manualCalibrationDots.clear();
+                    Diagnostics.log(context,
+                            "calibration started: guided one-by-one");
+                    listener.speak(R.string.calibration_init_message,
+                            Speech.QUEUE_FLUSH);
+                    listener.speak(R.string.calibration_step,
+                            Speech.QUEUE_ADD, 1);
+                    listener.vibrate(MEDIUM_VIBRATION);
+                    lastDotList.clear();
+                    reset();
+                    listener.invalidate();
+                }
+                calibrationRunnable = null;
             }
-            boolean result;
-            if ((result = selectPad(sixDots, width, height))) {
-                listener.speak(pad.padString);
-                listener.emitCalibrate();
-            } else {
-                listener.speak(R.string.keyboard_error);
-                listener.emitCalibrate();
-            }
-            lastDotList.clear();
-            reset();
-            return result;
+        };
+        calibrationRunnable = runnable;
+        calibrationHandler.postDelayed(runnable, LONG_HOLD_DELAY);
+    }
+
+    /** Abandon a pending calibration attempt (e.g. a finger was lifted). */
+    public void cancelCalibrationScheduled() {
+        if (calibrationRunnable != null) {
+            calibrationHandler.removeCallbacks(calibrationRunnable);
+            calibrationRunnable = null;
+        }
+    }
+
+    /**
+     * Abort a calibration in progress (e.g. the touch sequence was cancelled
+     * by the system) and return the keyboard to normal typing.
+     */
+    public void abortManualCalibration() {
+        cancelCalibrationScheduled();
+        Diagnostics.log(context, "calibration aborted (touch cancelled)");
+        isManualCalibrating = false;
+        currentCalibrationStep = 0;
+        manualCalibrationDots.clear();
+        lastDotList.clear();
+        reset();
+    }
+
+    /** True while a guided or instant calibration is in progress. */
+    public boolean isManualCalibrating() {
+        return isManualCalibrating;
+    }
+
+    /** The number of dots placed so far in the guided calibration. */
+    public int getCurrentCalibrationStep() {
+        return currentCalibrationStep;
+    }
+
+    /**
+     * Record a touch as the next dot of the guided one-by-one calibration.
+     * When the last dot is placed the calibration finishes.
+     */
+    public void handleManualCalibrationTouch(int x, int y) {
+        int totalDots = listener.dots();
+        if (totalDots == -1) {
+            totalDots = 6;
+        }
+        manualCalibrationDots.add(new Coords(currentCalibrationStep, x, y));
+        Diagnostics.log(context, "calibration touch step="
+                + (currentCalibrationStep + 1) + " at (" + x + "," + y + ")");
+        listener.vibrate(QUICK_VIBRATION);
+        currentCalibrationStep++;
+        if (currentCalibrationStep >= totalDots) {
+            finishManualCalibration();
         } else {
-            // Add the first three dots that have been touched to a member
-            // variable for reference on the second touch of three fingers
-            for (int i = 0; i < dotsDown.length; i++) {
-                if (dotsDown[i] != null) {
-                    lastDotList.add(dotsDown[i]);
-                    dotsDown[i] = null;
+            listener.speak(R.string.calibration_step, Speech.QUEUE_FLUSH,
+                    currentCalibrationStep + 1);
+            listener.invalidate();
+        }
+    }
+
+    // Finish the guided calibration with the dots collected one by one.
+    private void finishManualCalibration() {
+        isManualCalibrating = false;
+        int width = calibrationWidth;
+        int height = calibrationHeight;
+        Coords[] dots = manualCalibrationDots
+                .toArray(new Coords[manualCalibrationDots.size()]);
+        applyCreaseAvoidance(dots, width, height);
+        try {
+            if (!selectPad(dots, width, height)) {
+                listener.speak(R.string.keyboard_error);
+            } else {
+                String dynamicKey = getDynamicCalibrationKey(width, height);
+                pad.saveStringKey(context, dynamicKey,
+                        listener.portraitSwap(), dots);
+                Options.writeBooleanPreference(context,
+                        R.string.pref_lock_calibration_key, true);
+                Options.writeIntPreference(context,
+                        R.string.pref_last_calibrated_layout_key,
+                        pad.getKeyboardType().ordinal());
+                Diagnostics.log(context, "calibration finished (guided), "
+                        + "saved under " + dynamicKey);
+                listener.speak(R.string.calibration_success);
+                listener.emitCalibrate();
+            }
+        } catch (IllegalArgumentException e) {
+            Diagnostics.log(context,
+                    "calibration failed (guided): " + e.getMessage());
+            listener.speak(context.getString(R.string.keyboard_error) + ". "
+                    + e.getMessage(), Speech.QUEUE_FLUSH);
+            listener.vibrate(QUICK_VIBRATION);
+        }
+        manualCalibrationDots.clear();
+        reset();
+        listener.invalidate();
+    }
+
+    // Finish the instant calibration using the fingers currently held down.
+    private void finishManualCalibrationInstant(int id, int width, int height) {
+        int totalDots = listener.dots();
+        if (totalDots == -1) {
+            totalDots = 6;
+        }
+        setDotsSevenEight(false, false);
+        Coords[] dots = new Coords[totalDots];
+        for (int i = 0, j = 0; i < dotsDown.length && j < dots.length; i++) {
+            if (dotsDown[i] != null) {
+                int localX = dotsDown[i].getSecondX();
+                int localY = dotsDown[i].getSecondY();
+                int j2 = j + 1;
+                dots[j] = new Coords(j2, localX, localY);
+                j = j2;
+            }
+        }
+        isManualCalibrating = false;
+        applyCreaseAvoidance(dots, width, height);
+        try {
+            if (!selectPad(dots, width, height)) {
+                listener.speak(R.string.keyboard_error);
+                listener.vibrate(QUICK_VIBRATION);
+            } else {
+                String dynamicKey = getDynamicCalibrationKey(width, height);
+                pad.saveStringKey(context, dynamicKey,
+                        listener.portraitSwap(), dots);
+                Options.writeBooleanPreference(context,
+                        R.string.pref_lock_calibration_key, true);
+                Options.writeIntPreference(context,
+                        R.string.pref_last_calibrated_layout_key,
+                        pad.getKeyboardType().ordinal());
+                Diagnostics.log(context, "calibration finished (instant), "
+                        + "saved under " + dynamicKey);
+                listener.speak(pad.padString);
+                listener.speak(R.string.calibration_success,
+                        Speech.QUEUE_ADD);
+                listener.emitCalibrate();
+            }
+        } catch (IllegalArgumentException e) {
+            Diagnostics.log(context,
+                    "calibration failed (instant): " + e.getMessage());
+            listener.speak(context.getString(R.string.keyboard_error) + ". "
+                    + e.getMessage(), Speech.QUEUE_FLUSH);
+            listener.vibrate(QUICK_VIBRATION);
+        }
+        lastDotList.clear();
+        reset();
+        listener.invalidate();
+    }
+
+    // On large screens (foldables and tablets) the fold in the middle of the
+    // screen makes dots sitting on the crease hard to reach, so shift any dot
+    // close to the horizontal centre away from it.
+    private void applyCreaseAvoidance(Coords[] dots, int width, int height) {
+        float density = context.getResources().getDisplayMetrics().density;
+        if (density <= 0.0f) {
+            density = 1.0f;
+        }
+        int viewSmallestWidthDp = (int) (Math.min(width, height) / density);
+        if (viewSmallestWidthDp < 600) {
+            return;
+        }
+        int centerX = width / 2;
+        int marginPx = (int) (30.0f * density);
+        for (Coords dot : dots) {
+            if (dot != null) {
+                int dist = Math.abs(dot.x - centerX);
+                if (dist < marginPx) {
+                    int originalX = dot.x;
+                    if (dot.x <= centerX) {
+                        dot.x = centerX - marginPx;
+                    } else {
+                        dot.x = centerX + marginPx;
+                    }
+                    android.util.Log.i("BrailleView", "Crease Avoidance: shifted dot "
+                            + dot.id + " from " + originalX + " to " + dot.x);
                 }
             }
-            listener.speak(R.string.keyboard_next_three);
-            listener.emitCalibrate();
-            return true;
+        }
+    }
+
+    // The preference key of the calibration layout saved for the current
+    // orientation and screen size, so a layout calibrated in one orientation
+    // is never replayed onto a differently sized keyboard.
+    private String getDynamicCalibrationKey(int width, int height) {
+        String baseKey = context.getString(R.string.pref_custom_dots_key);
+        float ratio = width / height;
+        String orientation = ratio >= 0.85f && ratio <= 1.15f ? "_SQUARE"
+                : height > width ? "_PORTRAIT" : "_LANDSCAPE";
+        float density = context.getResources().getDisplayMetrics().density;
+        if (density <= 0.0f) {
+            density = 1.0f;
+        }
+        int viewSmallestWidthDp = (int) (Math.min(width, height) / density);
+        String size = viewSmallestWidthDp >= 600 ? "_LARGE" : "_SMALL";
+        return baseKey + orientation + size;
+    }
+
+    /**
+     * Load the pad for the given dimensions. When the dot positions are
+     * locked, the calibration saved for this orientation and screen size is
+     * restored; otherwise the default pad is used.
+     */
+    public void loadInitialPad(int w, int h) {
+        boolean locked = Options.getBooleanPreference(context,
+                R.string.pref_lock_calibration_key, false);
+        if (locked) {
+            int width = listener.autoRotate() ? w : Math.max(w, h);
+            int height = listener.autoRotate() ? h : Math.min(w, h);
+            String dynamicKey = getDynamicCalibrationKey(width, height);
+            Coords[] savedDots = Pad.loadStringKey(context, width, height,
+                    dynamicKey, listener.portraitSwap());
+            if (savedDots != null && selectPad(savedDots, width, height)) {
+                return;
+            }
+        }
+        loadDefaultPad(w, h);
+    }
+
+    /**
+     * Let the pad adjust its dot positions towards where the user actually
+     * touches them, using the drift measured while typing. This is a no-op
+     * when the dot positions are locked.
+     */
+    public void updateKeysAfterTyping() {
+        if (pad != null) {
+            pad.updateKeys(context, listener.portraitSwap());
         }
     }
 
     /** Clear all transient touch state after a gesture completes. */
     public void reset() {
-        requiredTouchTime = 0;
         for (int i = 0; i < dotsDown.length; i++) {
             dotsDown[i] = null;
         }
@@ -227,6 +501,11 @@ public class PadController {
         if (dot8) {
             this.dot8 = dot8;
         }
+    }
+
+    /** The name of the active pad type, for the diagnostic log. */
+    public String getPadTypeName() {
+        return pad != null ? pad.getKeyboardType().name() : "none";
     }
 
     /** The keys of the active pad, limited to the dots in use. */

@@ -295,4 +295,32 @@ public class Options {
         editor.putStringSet(context.getString(resource), value);
         editor.apply();
     }
+
+    public static int getIntPreference(Context context, int resource,
+            int defaultValue) {
+        SharedPreferences sharedPref = getSharedPreferences(context);
+        return sharedPref.getInt(context.getString(resource), defaultValue);
+    }
+
+    public static void writeIntPreference(Context context, int resource,
+            int value) {
+        SharedPreferences sharedPref = getSharedPreferences(context);
+        SharedPreferences.Editor editor = sharedPref.edit();
+        editor.putInt(context.getString(resource), value);
+        editor.apply();
+    }
+
+    public static Set<String> getStringSetPreferenceStringKey(Context context,
+            String key, Set<String> defaultValue) {
+        SharedPreferences sharedPref = getSharedPreferences(context);
+        return sharedPref.getStringSet(key, defaultValue);
+    }
+
+    public static void writeStringSetPreferenceStringKey(Context context,
+            String key, Set<String> value) {
+        SharedPreferences sharedPref = getSharedPreferences(context);
+        SharedPreferences.Editor editor = sharedPref.edit();
+        editor.putStringSet(key, value);
+        editor.apply();
+    }
 }

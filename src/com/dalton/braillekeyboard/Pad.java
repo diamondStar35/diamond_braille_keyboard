@@ -17,6 +17,7 @@
 package com.dalton.braillekeyboard;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -72,6 +73,11 @@ public abstract class Pad {
 
     protected final boolean invert;
 
+    // The drift measured for each dot from the finger positions matched to
+    // it while typing, consumed by updateKeys() when the dot positions are
+    // not locked.
+    private final Coords.XY[] differences = new Coords.XY[MAX_DOTS];
+
     public Pad(Context context, Coords[] coords, int width, int height,
             int padString, boolean invert) {
         SWIPE_MARGINE = Integer.parseInt(Options.getStringPreference(context,
@@ -88,6 +94,9 @@ public abstract class Pad {
             keys.add(coord);
         }
     }
+
+    /** The type of this pad, used to remember the last calibrated layout. */
+    public abstract Options.KeyboardType getKeyboardType();
 
     public Coords[] getBrailleDots(Coords[] coords, int dots) {
         dots = dots > keys.size() ? keys.size() : dots;
@@ -125,6 +134,9 @@ public abstract class Pad {
                         if (result < getDistance(i, outputDots[i])) {
                             list.add(outputDots[i]);
                             outputDots[i] = null;
+                            // The displaced dot no longer belongs to this
+                            // key, so its measured drift does not apply.
+                            differences[i] = null;
                         } else {
                             continue;
                         }
@@ -139,6 +151,10 @@ public abstract class Pad {
         // quickly. Could have something to do with wrapid touch events, but
         // unsure.
         if (best >= 0) {
+            // Record where this finger landed on the dot; updateKeys() uses
+            // these landings to nudge the dots towards the user's typing
+            // positions.
+            differences[best] = keys.get(best).getUpdate(coords.x, coords.y);
             outputDots[best] = coords;
         }
     }
@@ -167,6 +183,58 @@ public abstract class Pad {
         return key < DOT_FOUR || key == DOT_SEVEN ? Column.LEFT : Column.RIGHT;
     }
 
+    /**
+     * Nudge the dots towards where the user actually touches them, based on
+     * the drift measured while typing. The whole left hand column and the
+     * whole right hand column move together so the relative geometry of the
+     * dots is preserved. Each correction applies only a fifth of the measured
+     * drift so the dots converge slowly, and corrections larger than 40 px
+     * are ignored because they mean the hands were repositioned rather than
+     * the dots drifting. This is a no-op when the dot positions are locked.
+     *
+     * @param portrait true when the keyboard is used on a portrait screen
+     *            held in landscape.
+     */
+    public void updateKeys(Context context, boolean portrait) {
+        if (Options.getBooleanPreference(context,
+                R.string.pref_lock_calibration_key, false)) {
+            return;
+        }
+        Coords.XY[] newDiff = { new Coords.XY(0, 0), new Coords.XY(0, 0) };
+        int[] count = { 0, 0 };
+        for (int i = 0; i < differences.length; i++) {
+            int j = getColumn(i) == Column.LEFT ? 0 : 1;
+            if (differences[i] != null) {
+                count[j]++;
+                newDiff[j].x += differences[i].x;
+                newDiff[j].y += differences[i].y;
+                differences[i] = null;
+            }
+        }
+        for (int column = 0; column < 2; column++) {
+            if (count[column] > 0) {
+                newDiff[column].x /= count[column];
+                newDiff[column].y /= count[column];
+                double dist = Math.sqrt(newDiff[column].x
+                        * newDiff[column].x + newDiff[column].y
+                        * newDiff[column].y);
+                if (dist <= 40.0d) {
+                    newDiff[column].x = Math.round(newDiff[column].x * 0.2f);
+                    newDiff[column].y = Math.round(newDiff[column].y * 0.2f);
+                } else {
+                    newDiff[column].x = 0;
+                    newDiff[column].y = 0;
+                }
+            }
+        }
+        for (int i = 0; i < keys.size(); i++) {
+            int j = getColumn(i) == Column.LEFT ? 0 : 1;
+            if (keys.get(i) != null) {
+                keys.get(i).update(newDiff[j]);
+            }
+        }
+    }
+
     public Swipe getMultiFingerSwipe(Coords[] coords, boolean swap) {
         int fingersDown = 0;  // physical down
         int fingersUp = 0;    // physical up
@@ -176,9 +244,11 @@ public abstract class Pad {
             if (coords[i] != null) {
                 // The direction is already described in the physical direction
                 // of the user, so each finger is counted by the way it is
-                // swiped.
+                // swiped. When the keyboard is inverted the directions are
+                // rotated 180 degrees so the swipes keep matching the
+                // physical movements on the flipped keyboard.
                 byte dir = coords[i].swipeDirection(swipeThreshold,
-                        swipeThreshold, swap);
+                        swipeThreshold, swap, invert);
                 if (dir == Coords.DOT_DOWN) {
                     fingersDown++;
                 } else if (dir == Coords.DOT_LEFT) {
@@ -223,8 +293,12 @@ public abstract class Pad {
         for (int i = coords.length - 1; i >= 0; i--) {
             String bitString = "";
             if (coords[i] != null) {
+                // When the keyboard is inverted the raw direction is rotated
+                // 180 degrees (see {@link Coords#swipeDirection(int, int,
+                // boolean, boolean)}) so the bit string keeps describing the
+                // physical swipe on the flipped keyboard.
                 byte direction = coords[i].swipeDirection(swipeThreshold,
-                        swipeThreshold, swap);
+                        swipeThreshold, swap, invert);
                 bitString = Integer.toBinaryString(direction);
             }
             // zero padding
@@ -281,6 +355,28 @@ public abstract class Pad {
         Options.writeStringSetPreference(context, prefKey, points);
     }
 
+    // Save the dot positions under a preference whose key is only known at
+    // runtime (the per orientation and screen size calibration layout).
+    protected void saveStringKey(Context context, String prefKey,
+            boolean portrait) {
+        Set<String> points = new HashSet<String>();
+        for (Coords key : keys) {
+            points.add(savePointString(key, portrait));
+        }
+        Options.writeStringSetPreferenceStringKey(context, prefKey, points);
+    }
+
+    // Save the given calibrated dots, rather than the arranged keys, under a
+    // runtime preference key. The dots are re-arranged when they are loaded.
+    protected void saveStringKey(Context context, String prefKey,
+            boolean portrait, Coords[] customDots) {
+        Set<String> points = new HashSet<String>();
+        for (Coords key : customDots) {
+            points.add(savePointString(key, portrait));
+        }
+        Options.writeStringSetPreferenceStringKey(context, prefKey, points);
+    }
+
     public static Coords[] load(Context context, int viewWidth, int viewHeight,
             int prefKey, boolean portrait) {
         Set<String> points = Options.getStringSetPreference(context, prefKey,
@@ -294,6 +390,33 @@ public abstract class Pad {
                 coords[i++] = new Coords(centre, point);
             }
             return coords;
+        }
+        return null;
+    }
+
+    // Load the dot positions stored under a runtime preference key (the per
+    // orientation and screen size calibration layout). The stored points are
+    // returned in the order they were saved, identified by their dot ids.
+    public static Coords[] loadStringKey(Context context, int viewWidth,
+            int viewHeight, String prefKey, boolean portrait) {
+        Set<String> points = Options.getStringSetPreferenceStringKey(context,
+                prefKey, null);
+        if (points != null && !points.isEmpty()) {
+            int[] centre = { portrait ? viewHeight / 2 : viewWidth / 2,
+                    portrait ? viewWidth / 2 : viewHeight / 2 };
+            Coords[] coords = new Coords[points.size()];
+            int i = 0;
+            for (String point : points) {
+                coords[i++] = new Coords(centre, point);
+            }
+            List<Coords> sorted = new ArrayList<Coords>(Arrays.asList(coords));
+            Collections.sort(sorted, new Comparator<Coords>() {
+                @Override
+                public int compare(Coords c1, Coords c2) {
+                    return c1.id - c2.id;
+                }
+            });
+            return sorted.toArray(new Coords[sorted.size()]);
         }
         return null;
     }

@@ -31,6 +31,7 @@ import android.speech.tts.TextToSpeech;
 import android.speech.tts.TextToSpeech.EngineInfo;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.preference.CheckBoxPreference;
 import androidx.preference.ListPreference;
 import androidx.preference.MultiSelectListPreference;
 import androidx.preference.Preference;
@@ -136,6 +137,7 @@ public class SectionActivity extends AppCompatActivity {
                         GesturesActivity.class);
                 openActivity(R.string.pref_customize_touch_hold_key,
                         TouchHoldActivity.class);
+                wireLockCalibration();
                 break;
             case SectionActivity.SECTION_FEEDBACK:
                 setPreferencesFromResource(R.xml.prefs_feedback, rootKey);
@@ -180,8 +182,63 @@ public class SectionActivity extends AppCompatActivity {
                 break;
             default:
                 setPreferencesFromResource(R.xml.prefs_keyboard, rootKey);
+                wireAutoMatch();
                 break;
             }
+        }
+
+        // The "Lock dot positions" and "Automatically select keyboard layout"
+        // settings are coupled: locking the dot positions implies the layout
+        // is fixed, so auto-detection is switched off and vice versa.
+        private void wireLockCalibration() {
+            CheckBoxPreference lockCalibration = (CheckBoxPreference) findPreference(
+                    getString(R.string.pref_lock_calibration_key));
+            if (lockCalibration == null) {
+                return;
+            }
+            boolean autoMatch = Options.getBooleanPreference(getActivity(),
+                    R.string.pref_auto_match_keyboard_key,
+                    Boolean.parseBoolean(getString(
+                            R.string.pref_auto_match_keyboard_default)));
+            if (lockCalibration.isChecked() && autoMatch) {
+                Options.writeBooleanPreference(getActivity(),
+                        R.string.pref_auto_match_keyboard_key, false);
+            } else if (!lockCalibration.isChecked() && !autoMatch) {
+                Options.writeBooleanPreference(getActivity(),
+                        R.string.pref_auto_match_keyboard_key, true);
+            }
+            lockCalibration.setOnPreferenceChangeListener(
+                    new Preference.OnPreferenceChangeListener() {
+                        @Override
+                        public boolean onPreferenceChange(
+                                Preference preference, Object newValue) {
+                            Options.writeBooleanPreference(getActivity(),
+                                    R.string.pref_auto_match_keyboard_key,
+                                    !(Boolean) newValue);
+                            return true;
+                        }
+                    });
+        }
+
+        // Mirror of wireLockCalibration for the auto-match setting in the
+        // keyboard section.
+        private void wireAutoMatch() {
+            CheckBoxPreference autoMatch = (CheckBoxPreference) findPreference(
+                    getString(R.string.pref_auto_match_keyboard_key));
+            if (autoMatch == null) {
+                return;
+            }
+            autoMatch.setOnPreferenceChangeListener(
+                    new Preference.OnPreferenceChangeListener() {
+                        @Override
+                        public boolean onPreferenceChange(
+                                Preference preference, Object newValue) {
+                            Options.writeBooleanPreference(getActivity(),
+                                    R.string.pref_lock_calibration_key,
+                                    !(Boolean) newValue);
+                            return true;
+                        }
+                    });
         }
 
         @Override

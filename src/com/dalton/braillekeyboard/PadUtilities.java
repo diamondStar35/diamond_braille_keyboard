@@ -17,10 +17,16 @@
 package com.dalton.braillekeyboard;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import android.content.Context;
+import android.os.Vibrator;
+import android.util.Log;
 import android.util.TypedValue;
+import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityManager;
 
 import com.dalton.braillekeyboard.Options.KeyboardType;
 import com.dalton.braillekeyboard.Coords;
@@ -68,6 +74,13 @@ public class PadUtilities {
                         context,
                         R.string.pref_default_keyboard_key,
                         context.getString(R.string.pref_default_keyboard_default))));
+        List<Coords> keyList = Arrays.asList(coords);
+        // Fix degenerate calibrations before building the pad, unless the
+        // keyboard type is auto-detected from the finger positions.
+        if (!autoSet && keyboard != KeyboardType.AUTO) {
+            validateCalibrationGeometry(context, keyList, keyboard, width,
+                    height);
+        }
         if (autoSet || keyboard == KeyboardType.AUTO) {
             List<Coords> keys = Arrays.asList(coords);
             int left = VerticalPad.getColumn(keys, VerticalPad.Column.LEFT);
@@ -85,7 +98,8 @@ public class PadUtilities {
                 }
             }
 
-            if (leftCount == 3 && rightCount == 3) {
+            int expectedOneSide = useEightDots ? 4 : 3;
+            if (leftCount == expectedOneSide && rightCount == expectedOneSide) {
                 pad = new VerticalPad(context, coords, width, height, portrait,
                         invert, useEightDots);
             } else {
@@ -110,6 +124,120 @@ public class PadUtilities {
         return pad;
     }
 
+    /**
+     * Check a set of calibrated dots for degenerate geometries and fix them
+     * in place. Two problems are corrected: a collapsed axis (all the dots in
+     * a line) is re-expanded around the centre of the dots, and the two
+     * columns of a horizontal layout that overlap or cross each other are
+     * split apart. The user is told about the correction by a distinct
+     * double vibration and an accessibility announcement.
+     *
+     * @throws IllegalArgumentException when there are too few dots.
+     */
+    public static void validateCalibrationGeometry(Context context,
+            List<Coords> coords, KeyboardType type, int width, int height) {
+        if (coords.size() < 6) {
+            throw new IllegalArgumentException("Too few dots");
+        }
+        int minX = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE;
+        int minY = Integer.MAX_VALUE;
+        int maxY = Integer.MIN_VALUE;
+        for (Coords c : coords) {
+            minX = Math.min(minX, c.x);
+            maxX = Math.max(maxX, c.x);
+            minY = Math.min(minY, c.y);
+            maxY = Math.max(maxY, c.y);
+        }
+        int deltaX = maxX - minX;
+        int deltaY = maxY - minY;
+        boolean healed = false;
+        if (type == KeyboardType.VERTICAL) {
+            // The dots should form two columns; a nearly flat calibration
+            // has no vertical separation to place dots 1-3 over 4-6, so
+            // stretch the dots horizontally around their centre.
+            if (deltaY < deltaX / 2) {
+                int centerX = (deltaX / 2) + minX;
+                float scale = (deltaY * 1.2f) / (deltaX > 0 ? deltaX : 1);
+                if (scale > 1.0f || scale <= 0.0f) {
+                    scale = 0.5f;
+                }
+                for (Coords c : coords) {
+                    c.x = Math.round((c.x - centerX) * scale) + centerX;
+                    c.setSecondCords(c.x, c.y);
+                }
+                healed = true;
+            }
+        } else {
+            // A horizontal layout with no horizontal separation is stretched
+            // vertically around the centre of the dots.
+            if (deltaX < deltaY / 2) {
+                int centerY = (deltaY / 2) + minY;
+                float scale = (deltaX * 1.2f) / (deltaY > 0 ? deltaY : 1);
+                if (scale > 1.0f || scale <= 0.0f) {
+                    scale = 0.5f;
+                }
+                for (Coords c : coords) {
+                    c.y = Math.round((c.y - centerY) * scale) + centerY;
+                    c.setSecondCords(c.x, c.y);
+                }
+                healed = true;
+            }
+            // The two rows of a horizontal layout must not overlap: sort the
+            // dots by X and split any overlapping columns apart.
+            Collections.sort(coords, Pad.comparatorX);
+            int half = coords.size() / 2;
+            if (coords.get(half).x <= coords.get(half - 1).x) {
+                float density = context.getResources().getDisplayMetrics().density;
+                if (density <= 0.0f) {
+                    density = 1.0f;
+                }
+                int gap = Math.round(30.0f * density);
+                int overlap = (coords.get(half - 1).x - coords.get(half).x)
+                        + gap;
+                int shift = overlap / 2;
+                for (int i = 0; i < coords.size(); i++) {
+                    Coords c = coords.get(i);
+                    if (i < half) {
+                        c.x -= shift;
+                    } else {
+                        c.x += shift;
+                    }
+                    c.setSecondCords(c.x, c.y);
+                }
+                healed = true;
+            }
+        }
+        if (healed) {
+            Log.i("PadUtilities", "Soft-Healing applied: "
+                    + (type == KeyboardType.VERTICAL ? "VERTICAL"
+                            : "TABLETOP/HORIZONTAL"));
+            Vibrator vibrator = (Vibrator) context
+                    .getSystemService(Context.VIBRATOR_SERVICE);
+            if (vibrator != null) {
+                long[] pattern = { 0, 60, 80, 60 };
+                vibrator.vibrate(pattern, -1);
+            }
+            AccessibilityManager manager = (AccessibilityManager) context
+                    .getSystemService(Context.ACCESSIBILITY_SERVICE);
+            if (manager != null && manager.isEnabled()) {
+                AccessibilityEvent event = AccessibilityEvent.obtain();
+                event.setEventType(AccessibilityEvent.TYPE_ANNOUNCEMENT);
+                event.setClassName("com.dalton.braillekeyboard.BrailleView");
+                event.setPackageName(context.getPackageName());
+                String msg = "Geometria di calibrazione ottimizzata automaticamente.";
+                Locale currentLocale = context.getResources()
+                        .getConfiguration().locale;
+                if (currentLocale != null
+                        && !"it".equals(currentLocale.getLanguage())) {
+                    msg = "Calibration geometry optimized automatically.";
+                }
+                event.getText().add(msg);
+                manager.sendAccessibilityEvent(event);
+            }
+        }
+    }
+
     public static Pad displayDefaultPad(Context context, int width, int height,
             boolean portrait, boolean useEightDots) {
         Pad pad;
@@ -121,6 +249,13 @@ public class PadUtilities {
                         context,
                         R.string.pref_default_keyboard_key,
                         context.getString(R.string.pref_default_keyboard_default))));
+        // When the layout is auto-detected, remember the type of the last
+        // calibration so the keyboard doesn't flip between layouts.
+        int lastLayoutOrdinal = Options.getIntPreference(context,
+                R.string.pref_last_calibrated_layout_key, -1);
+        if (keyboard == KeyboardType.AUTO && lastLayoutOrdinal != -1) {
+            keyboard = KeyboardType.values()[lastLayoutOrdinal];
+        }
         int maxScreen = (int) TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP, MAX_SCREEN_SIZE, context
                         .getResources().getDisplayMetrics());

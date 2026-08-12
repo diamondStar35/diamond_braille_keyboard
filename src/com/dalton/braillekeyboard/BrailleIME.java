@@ -139,6 +139,16 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         // the keyboard so it receives raw touches and gestures even with
         // TalkBack turned on (see AccessibilityService).
         AccessibilityService.setKeyboardPassthrough(true);
+        if (!restarting) {
+            // The first show for this input field is the most useful place to
+            // record the device and keyboard state for problem reports.
+            Diagnostics.log(this, "keyboard shown, app="
+                    + (info != null && info.packageName != null
+                            ? info.packageName : "unknown")
+                    + " inputType=0x" + Integer.toHexString(
+                            info != null ? info.inputType : 0));
+            Diagnostics.logDeviceInfo(this);
+        }
         if (!restarting && brailleView != null) {
             // Tell the user the keyboard is ready, but only the first time it
             // starts for this input field, not restarts. That'll be annoying.
@@ -157,6 +167,7 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
     @Override
     public void onFinishInputView(boolean finishingInput) {
         super.onFinishInputView(finishingInput);
+        Diagnostics.log(this, "keyboard hidden");
         // The keyboard window is gone, so TalkBack can handle the screen
         // normally again.
         AccessibilityService.setKeyboardPassthrough(false);
