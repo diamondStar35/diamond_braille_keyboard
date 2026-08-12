@@ -22,20 +22,21 @@ import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.inputmethodservice.Keyboard;
 import androidx.core.content.ContextCompat;
 import android.view.inputmethod.InputMethodManager;
-
-import com.dalton.braillekeyboard.EditingController.Granularity;
-import com.dalton.braillekeyboard.Options.KeyboardEcho;
 
 /**
  * ActionHandler maps gestures from a View to the higher level actions of the
  * keyboard: text editing, voice input, settings and feedback toggles.
  *
- * <p>Editing operations are delegated to {@link EditingController}; this
- * class decides which operation a swipe or typed character maps to and
- * delivers the results through the {@link OnActionListener} callback.
+ * <p>Which action a gesture performs is decided by the gesture itself:
+ * every {@link Swipe} knows the {@link KeyboardAction} bound to it (either
+ * the user's choice from the "Customize gestures" settings screen or its
+ * default), and each action knows how to perform itself through the
+ * {@link ActionContext} this class implements. Editing operations are
+ * delegated to {@link EditingController}; this class only wires the gesture
+ * to its action and delivers the results through the
+ * {@link OnActionListener} callback.
  *
  * <p>A View should instantiate this class once upon initialisation and call
  * its handleSwipe or handleCharacter methods to perform actions. Before such
@@ -44,7 +45,7 @@ import com.dalton.braillekeyboard.Options.KeyboardEcho;
  * calling setCallback(OnActionListener callback). You should always call the
  * shutdown() method when you are done.
  */
-public class ActionHandler {
+public class ActionHandler implements ActionContext {
     // The maximum time between two identical swipe patterns which constitutes a
     // double swipe.
     private static final long DOUBLE_TOUCH_THRESHOLD = 1300;
@@ -173,9 +174,10 @@ public class ActionHandler {
      * Handle swipe actions delivered from the interracting View.
      *
      * Each View should deliver a swipe action as defined by the generic
-     * Swipe type. This method will perform the appropriate action for the
-     * received Swipe gesture. If need be the appropriate callbacks will be
-     * invoked.
+     * Swipe type. This method looks up the {@link KeyboardAction} bound to
+     * the gesture and performs it, delivering any results through the
+     * callbacks. If the gesture is disabled (bound to {@code NONE}) or not a
+     * real gesture, nothing happens and false is returned.
      *
      * @param context
      *            The application context.
@@ -189,307 +191,13 @@ public class ActionHandler {
             return true;
         }
 
-        value = normaliseSwipe(value);
-        String message = null;
-        FeedbackEvent feedbackEvent = FeedbackEvent.TYPE;
-        // Every handled gesture emits the generic TYPE feedback event unless it
-        // sets a more specific one (DELETE, NEW_LINE, COMMAND) below; NONE
-        // returns early and the default case suppresses the event entirely.
-        boolean notify = true;
-        boolean setDots = false;
-        boolean considerPassword = false;
-        // states for dots 7 and 8
-        boolean dots[] = { false, false };
         boolean fastDoubleSwipe = fastDoubleSwipe(value, DOUBLE_TOUCH_THRESHOLD);
-
-        switch (value) {
-        case ONE_LEFT:
-            editingController.moveLeft(context, Granularity.CHARACTER);
-            break;
-        case ONE_RIGHT:
-            editingController.moveRight(context, Granularity.CHARACTER);
-            break;
-        case ONE_DOWN:
-            boolean soundOn = Options.getBooleanPreference(context,
-                    R.string.pref_sound_feedback_key, true);
-            boolean hapticOn = Options.getBooleanPreference(context,
-                    R.string.pref_haptic_feedback_key, true);
-            if (soundOn && hapticOn) {
-                // Both on -> turn both off
-                Options.writeBooleanPreference(context,
-                        R.string.pref_sound_feedback_key, false);
-                Options.writeBooleanPreference(context,
-                        R.string.pref_haptic_feedback_key, false);
-                message = context.getString(R.string.keyboard_feedback_none);
-            } else if (!soundOn && !hapticOn) {
-                // Both off -> vibrate only
-                Options.writeBooleanPreference(context,
-                        R.string.pref_haptic_feedback_key, true);
-                message = context.getString(R.string.keyboard_feedback_vibrate);
-            } else if (hapticOn) {
-                // Vibrate only -> sound only
-                Options.writeBooleanPreference(context,
-                        R.string.pref_haptic_feedback_key, false);
-                Options.writeBooleanPreference(context,
-                        R.string.pref_sound_feedback_key, true);
-                message = context.getString(R.string.keyboard_feedback_sound);
-            } else {
-                // Sound only -> both on
-                Options.writeBooleanPreference(context,
-                        R.string.pref_haptic_feedback_key, true);
-                message = context.getString(R.string.keyboard_feedback_all);
-            }
-            feedbackEvent = FeedbackEvent.COMMAND;
-            callback.onFeedbackSettingsChanged();
-            break;
-        case ONE_UP:
-            message = editingController.getInput(Granularity.CHARACTER);
-            considerPassword = true;
-            break;
-        case TWO_LEFT:
-            editingController.moveLeft(context, Granularity.WORD);
-            break;
-        case TWO_RIGHT:
-            editingController.moveRight(context, Granularity.WORD);
-            break;
-        case TWO_UP:
-            message = editingController.getInput(Granularity.WORD);
-            considerPassword = true;
-            break;
-        case TWO_DOWN:
-            KeyboardEcho echo = KeyboardEcho.valueOf(Integer.parseInt(Options
-                    .getStringPreference(context,
-                            R.string.pref_echo_feedback_key,
-                            KeyboardEcho.CHARACTER.getValue())));
-            echo = KeyboardEcho.next(echo);
-            Options.writeStringPreference(context,
-                    R.string.pref_echo_feedback_key, echo.getValue());
-            message = context.getString(echo.resource);
-            feedbackEvent = FeedbackEvent.COMMAND;
-            break;
-        case TWO_FINGERS_DOWN: // switch to the next Braille table
-            feedbackEvent = FeedbackEvent.COMMAND;
-            message = listener.switchTable();
-            message = message == null ? context
-                    .getString(R.string.no_braille_table) : message;
-            callback.onSetLocale(listener.getLocale());
-            break;
-        case DOTS_FOUR_SIX_RIGHT:
-            // The "closing keyboard" announcement is owned by View.close() so
-            // it honours the "Keyboard closed" speech event.
-            listener.closeKeyboard();
-            break;
-        case THREE_LEFT:
-            editingController.moveLeft(context, Granularity.LINE);
-            break;
-        case THREE_RIGHT:
-            editingController.moveRight(context, Granularity.LINE);
-            break;
-        case THREE_UP:
-            message = editingController.getInput(Granularity.LINE);
-            considerPassword = true;
-            break;
-        case THREE_DOWN:
-            if (listener.getDots() == 8) {
-                setDots = true;
-                dots[0] = true;
-            } else {
-                message = context.getString(R.string.unknown_character);
-            }
-            break;
-        case THREE_FINGERS_LEFT:
-            feedbackEvent = FeedbackEvent.COMMAND;
-            listener.toggleEmojiMode();
-            break;
-        case THREE_FINGERS_DOWN: // submit the text / perform editor action
-            if (!listener.submitText()) {
-                // Submit fell back to inserting a newline.
-                feedbackEvent = FeedbackEvent.NEW_LINE;
-                message = context.getString(R.string.newline);
-            }
-            break;
-        case FOUR_LEFT:
-            feedbackEvent = FeedbackEvent.DELETE;
-            editingController.backspace(context, Granularity.CHARACTER,
-                    fastDoubleSwipe);
-            break;
-        case FOUR_RIGHT:
-            if (fastDoubleSwipe) {
-                if (editingController.handleDoubleSpace(context)) {
-                    break;
-                }
-            }
-            editingController.typeCharacter(context, (int) ' ', " ");
-            break;
-        case FOUR_DOWN: // insert newline explicitly
-            feedbackEvent = FeedbackEvent.NEW_LINE;
-            editingController.typeCharacter(context, Keyboard.KEYCODE_DONE,
-                    context.getString(R.string.newline));
-            break;
-        case FOUR_UP:
-            Options.switchBooleanPreference(context, R.string.pref_privacy_key,
-                    Boolean.parseBoolean(context
-                            .getString(R.string.pref_privacy_default)));
-            callback.onPrivacy();
-            message = Options.getBooleanPreference(context,
-                    R.string.pref_privacy_key, Boolean.parseBoolean(context
-                            .getString(R.string.pref_privacy_default))) ? context
-                    .getString(R.string.privacy_enabled) : context
-                    .getString(R.string.privacy_disabled);
-            feedbackEvent = FeedbackEvent.COMMAND;
-            break;
-        case FIVE_LEFT:
-            feedbackEvent = FeedbackEvent.DELETE;
-            editingController.backspace(context, Granularity.WORD,
-                    fastDoubleSwipe);
-            break;
-        case FIVE_DOWN:
-            feedbackEvent = FeedbackEvent.COMMAND;
-            if (fastDoubleSwipe) {
-                message = context.getString(R.string.show_input_switcher);
-                inputManager.showInputMethodPicker();
-            } else {
-                message = context.getString(R.string.swipe_confirm_input);
-            }
-            break;
-        case FIVE_UP:
-            feedbackEvent = FeedbackEvent.COMMAND;
-            if (fastDoubleSwipe) {
-                callback.onSetLocale(Locale.getDefault());
-                message = context.getString(R.string.show_settings);
-                Intent intent = new Intent(context, PreferenceIME.class);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                context.startActivity(intent);
-            } else {
-                message = context.getString(R.string.swipe_confirm_settings);
-            }
-            break;
-        case SIX_LEFT:
-            feedbackEvent = FeedbackEvent.DELETE;
-            editingController.backspace(context, Granularity.LINE,
-                    fastDoubleSwipe);
-            break;
-        case SIX_RIGHT:
-            editingController.nextAction(context);
-            break;
-        case SIX_UP:
-            editingController.selectAction(context);
-            break;
-        case SIX_DOWN:
-            if (listener.getDots() == 8) {
-                setDots = true;
-                dots[1] = true;
-            } else {
-                message = context.getString(R.string.unknown_character);
-            }
-            break;
-        case HOLD_SIX_LEFT:
-            feedbackEvent = FeedbackEvent.DELETE;
-            editingController.moveLeft(context, Granularity.ALL);
-            break;
-        case HOLD_SIX_RIGHT:
-            editingController.moveRight(context, Granularity.ALL);
-            break;
-        case HOLD_SIX_DOWN:
-            feedbackEvent = FeedbackEvent.COMMAND;
-            boolean echoPassword = Options.switchBooleanPreference(context,
-                    R.string.pref_echo_passwords_key, false);
-            message = echoPassword ? context
-                    .getString(R.string.speak_passwords) : context
-                    .getString(R.string.no_password_echo);
-            break;
-        case HOLD_SIX_UP:
-            message = editingController.getInput(Granularity.ALL);
-            considerPassword = true;
-            break;
-        case HOLD_THREE_LEFT:
-            feedbackEvent = FeedbackEvent.DELETE;
-            editingController.backspace(context, Granularity.ALL,
-                    fastDoubleSwipe);
-            break;
-        case HOLD_THREE_RIGHT:
-            feedbackEvent = FeedbackEvent.COMMAND;
-            int brailleType = listener.switchBrailleType();
-            message = brailleType == 8 ? context
-                    .getString(R.string.grade_computer) : context
-                    .getString(R.string.grade_literary);
-            callback.onSetLocale(listener.getLocale());
-            break;
-        case HOLD_THREE_DOWN:
-            feedbackEvent = FeedbackEvent.COMMAND;
-            message = listener.switchTable();
-            message = message == null ? context
-                    .getString(R.string.no_braille_table) : message;
-            callback.onSetLocale(listener.getLocale());
-            break;
-        case HOLD_THREE_UP:
-            doVoiceInput(context, fastDoubleSwipe);
-            break;
-        case HOLD_ONE_RIGHT:
-            message = context
-                    .getString(listener.toggleMark() ? R.string.set_mark
-                            : R.string.unset_mark);
-            break;
-        case HOLD_ONE_LEFT:
-            feedbackEvent = FeedbackEvent.COMMAND;
-            message = context.getString(R.string.keyboard_shrink);
-            callback.onShrink();
-            break;
-        case HOLD_ONE_DOWN:
-            CharSequence text = listener.getAllText().text;
-            if (text != null) {
-                message = String.format(context.getString(R.string.word_count),
-                        EditingUtilities.lineCount(text),
-                        EditingUtilities.wordCount(text),
-                        EditingUtilities.characterCount(text));
-            }
-            break;
-        case HOLD_ONE_UP:
-            Options.switchBooleanPreference(context,
-                    R.string.pref_auto_caps_key, Boolean.parseBoolean(context
-                            .getString(R.string.pref_auto_caps_default)));
-            message = Options.getBooleanPreference(context,
-                    R.string.pref_auto_caps_key, Boolean.parseBoolean(context
-                            .getString(R.string.pref_auto_caps_default))) ? context
-                    .getString(R.string.auto_caps_enabled) : context
-                    .getString(R.string.auto_caps_disabled);
-            feedbackEvent = FeedbackEvent.COMMAND;
-            break;
-        case HOLD_FOUR_LEFT:
-            editingController.doSpellCheck(context, SpellChecker.Direction.LEFT,
-                    0, listener.getCursor());
-            break;
-        case HOLD_FOUR_RIGHT:
-            editingController.doSpellCheck(context,
-                    SpellChecker.Direction.RIGHT, 0, listener.getCursor());
-            break;
-        case HOLD_FOUR_DOWN:
-            editingController.nextSpellCheckSuggestion(context);
-            break;
-        case HOLD_FOUR_UP:
-            editingController.previousSpellCheckSuggestion(context);
-            break;
-        case NONE:
+        KeyboardAction action = value.getBoundAction(context);
+        if (action == null || action == KeyboardAction.NONE) {
             return false;
-        default:
-            notify = false;
         }
 
-        // Invoke the notification callback
-        if (notify) {
-            callback.onNotify(feedbackEvent);
-        }
-        if (message != null) {
-            // Only invoke onText callback if there is a message to send i.e. it
-            // wasn't already handled.
-            callback.onText("%s", message,
-                    considerPassword ? listener.isPasswordField() : false);
-        }
-
-        if (setDots) { // Dots 7 or 8 were triggered
-            callback.onSetDots(dots[0], dots[1]);
-        }
-
+        action.perform(this, fastDoubleSwipe);
         lastSwipe = value; // update the last swipe
         return true;
     }
@@ -615,13 +323,81 @@ public class ActionHandler {
         }
     }
 
-    // Some swipe actions should resolve to the same thing eg. dots 4 and 5
-    // swipe right.
-    private static Swipe normaliseSwipe(Swipe swipe) {
-        if (swipe == Swipe.FIVE_RIGHT) {
-            return Swipe.FOUR_RIGHT;
-        }
-        return swipe;
+    // ActionContext ---------------------------------------------------------
+
+    @Override
+    public Context context() {
+        return context;
     }
 
+    @Override
+    public EditingController editing() {
+        return editingController;
+    }
+
+    @Override
+    public KeyboardListener listener() {
+        return listener;
+    }
+
+    @Override
+    public void speak(String message, boolean considerPassword) {
+        if (message == null) {
+            return;
+        }
+        callback.onText("%s", message,
+                considerPassword ? listener.isPasswordField() : false);
+    }
+
+    @Override
+    public void speak(int stringRes) {
+        callback.onText("%s", context.getString(stringRes), false);
+    }
+
+    @Override
+    public void notify(FeedbackEvent event) {
+        callback.onNotify(event);
+    }
+
+    @Override
+    public void setDots(boolean dot7, boolean dot8) {
+        callback.onSetDots(dot7, dot8);
+    }
+
+    @Override
+    public void feedbackSettingsChanged() {
+        callback.onFeedbackSettingsChanged();
+    }
+
+    @Override
+    public void setLocale(Locale locale) {
+        callback.onSetLocale(locale);
+    }
+
+    @Override
+    public void shrinkKeyboard() {
+        callback.onShrink();
+    }
+
+    @Override
+    public void privacyChanged() {
+        callback.onPrivacy();
+    }
+
+    @Override
+    public void showInputMethodPicker() {
+        inputManager.showInputMethodPicker();
+    }
+
+    @Override
+    public void openSettings() {
+        Intent intent = new Intent(context, PreferenceIME.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        context.startActivity(intent);
+    }
+
+    @Override
+    public void voiceInput(boolean fastDoubleSwipe) {
+        doVoiceInput(context, fastDoubleSwipe);
+    }
 }

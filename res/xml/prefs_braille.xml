@@ -26,7 +26,7 @@
          <!-- The computer and literary table lists are multi-select.  The
               checked tables become the ones available for switching between
               while typing (two finger swipe down), and they also populate the
-              "Default braille table" list in the keyboard settings. -->
+              "Default braille table" list in the Braille Input settings. -->
          <MultiSelectListPreference
              android:key="@string/pref_braille_computer_table_key"
              android:title="@string/pref_default_computer_braille_table_title"

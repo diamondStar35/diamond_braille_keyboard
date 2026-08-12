@@ -54,6 +54,7 @@ public class SectionActivity extends AppCompatActivity {
 
     public static final int SECTION_KEYBOARD = 1;
     public static final int SECTION_BRAILLE = 2;
+    public static final int SECTION_BRAILLE_INPUT = 6;
     public static final int SECTION_FEEDBACK = 3;
     public static final int SECTION_TEXT_TO_SPEECH = 4;
     public static final int SECTION_MISC = 5;
@@ -78,6 +79,8 @@ public class SectionActivity extends AppCompatActivity {
         switch (section) {
         case SECTION_BRAILLE:
             return R.string.pref_category_braille_title;
+        case SECTION_BRAILLE_INPUT:
+            return R.string.pref_category_braille_input_title;
         case SECTION_FEEDBACK:
             return R.string.pref_category_feedback_title;
         case SECTION_TEXT_TO_SPEECH:
@@ -123,6 +126,16 @@ public class SectionActivity extends AppCompatActivity {
                 setPreferencesFromResource(R.xml.prefs_braille, rootKey);
                 addTables();
                 break;
+            case SectionActivity.SECTION_BRAILLE_INPUT:
+                setPreferencesFromResource(R.xml.prefs_braille_input, rootKey);
+                // The "Default braille table" list is populated from the
+                // tables the user has checked in the braille section.
+                addTables();
+                openActivity(R.string.pref_customize_gestures_key,
+                        GesturesActivity.class);
+                openActivity(R.string.pref_customize_touch_hold_key,
+                        TouchHoldActivity.class);
+                break;
             case SectionActivity.SECTION_FEEDBACK:
                 setPreferencesFromResource(R.xml.prefs_feedback, rootKey);
                 
@@ -166,9 +179,6 @@ public class SectionActivity extends AppCompatActivity {
                 break;
             default:
                 setPreferencesFromResource(R.xml.prefs_keyboard, rootKey);
-                // The "Default braille table" list is populated from the
-                // tables the user has checked in the braille section.
-                addTables();
                 break;
             }
         }

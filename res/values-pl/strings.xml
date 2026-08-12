@@ -101,9 +101,6 @@
     <string name="pref_text_to_speech_title">Ustawienia Syntezy Mowy</string>
     <string name="pref_use_eight_dots_summary">Gdy włączone, pokazuj punkty 7 i 8.</string>
     <string name="pref_use_eight_dots_title">Pokazuj 8-punktową klawiaturę</string>
-    <string name="pref_vibrate_on_exit_title">Wibracja przy zamykaniu klawiatury</string>
-    <string name="pref_voice_shortcut_summary">Gdy włączone, stuknij dwukrotnie z przytrzymaniem,by rozpocząć dyktowanie głosowe kiedy Talkback jest włączony.</string> 
-    <string name="pref_voice_shortcut_title">Skrót wprowadzania głosowego</string>
     <string name="privacy_disabled">Ekran prywatny wyłączony</string>
     <string name="privacy_enabled">Ekran prywatny włączony</string>
     <string name="ready">klawiatura gotowa</string>

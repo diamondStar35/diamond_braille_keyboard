@@ -101,9 +101,6 @@
     <string name="pref_text_to_speech_title">Impostazioni di sintesi vocale</string>
     <string name="pref_use_eight_dots_summary">Se abilitato mostra i punti 7 e 8.</string>
     <string name="pref_use_eight_dots_title">Mostra Tastiera a otto punti</string>
-    <string name="pref_vibrate_on_exit_title">Vibrazione alla chiusura della tastiera</string>
-    <string name="pref_voice_shortcut_summary">Se attivato tocca due volte e tieni premuto per iniziare la dettatura vocale con TalkBack attivo.</string> 
-    <string name="pref_voice_shortcut_title">Scorciatoia per dettatura vocale</string>
     <string name="privacy_disabled">Schermo Privacy disattivato</string>
     <string name="privacy_enabled">Schermo Privacy attivato</string>
     <string name="ready">tastiera pronta</string>

@@ -11,10 +11,9 @@ import android.content.Context;
  * swipe resolution, together with the logic that positions the pad.
  *
  * <p>Extracted from {@link com.dalton.braillekeyboard.View} so the view is
- * left with touch dispatch
- * dispatch, drawing and speech concerns while all pad state lives here. The
- * view feeds translated touch coordinates in through the {@code onPointer*}
- * methods and asks for swipes and dot patterns back.
+ * left with touch dispatch, drawing and speech concerns while all pad state
+ * lives here. The view feeds translated touch coordinates in through the
+ * {@code onPointer*} methods and asks for swipes and dot patterns back.
  */
 public class PadController {
     private static final byte NO_DOTS = 0;
@@ -127,7 +126,7 @@ public class PadController {
             reset();
             return result;
         } else {
-            // Add the first three dots that have been tuched to a member
+            // Add the first three dots that have been touched to a member
             // variable for reference on the second touch of three fingers
             for (int i = 0; i < dotsDown.length; i++) {
                 if (dotsDown[i] != null) {
@@ -165,14 +164,6 @@ public class PadController {
 
     public boolean isHandledSwipe() {
         return handledSwipe;
-    }
-
-    public long getRequiredTouchTime() {
-        return requiredTouchTime;
-    }
-
-    public int getDotsDownCount() {
-        return countDotsDown(dotsDown);
     }
 
     /**

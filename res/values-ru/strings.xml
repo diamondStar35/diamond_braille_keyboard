@@ -101,9 +101,6 @@
     <string name="pref_text_to_speech_title">Настройки преобразования текста в речь</string>
     <string name="pref_use_eight_dots_summary">При выборе этой настройки появляются точки 7 и 8.</string>
     <string name="pref_use_eight_dots_title">Показать восьмиточечную клавиатуру</string>
-    <string name="pref_vibrate_on_exit_title">Вибрация при закрытии клавиатуры</string>
-    <string name="pref_voice_shortcut_summary">При выборе этой настройки коснитесь дважды с удержанием, чтобы начать голосовой ввод при включённом talkback.</string> 
-    <string name="pref_voice_shortcut_title">Команда для голосового ввода</string>
     <string name="privacy_disabled">Режим приватности отключён</string>
     <string name="privacy_enabled">Режим приватности включён</string>
     <string name="ready">клавиатура готова</string>

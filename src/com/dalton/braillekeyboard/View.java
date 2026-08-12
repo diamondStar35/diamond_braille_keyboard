@@ -342,27 +342,25 @@ public class View extends android.view.View implements PadController.Listener {
             // typing positions (e.g. dot 4 moving out of reach) when typing
             // quickly, so the keyboard is only ever positioned by the manual
             // calibration (holding three fingers on each side).
-            if (!handleVoiceInput()) {
-                if (padController.hasPad() && padController.hasPressedDots()) {
-                    boolean swap = getHeight() > getWidth()
-                            && !displayParams.autoRotate;
-                    swipe = padController.resolveMultiFingerSwipe(swap);
+            if (padController.hasPad() && padController.hasPressedDots()) {
+                boolean swap = getHeight() > getWidth()
+                        && !displayParams.autoRotate;
+                swipe = padController.resolveMultiFingerSwipe(swap);
+                if (swipe != Swipe.NONE) {
+                    actionHandler.handleSwipe(getContext(), swipe);
+                }
+                padController.setDots();
+                if (!padController.isHandledSwipe()) {
+                    // single finger flicks
+                    swipe = padController.resolveSingleSwipe(swap);
                     if (swipe != Swipe.NONE) {
                         actionHandler.handleSwipe(getContext(), swipe);
+                    } else { // all swipe attempts failed so resort to
+                        // entering character
+                        handleTypedCharacter();
                     }
-                    padController.setDots();
-                    if (!padController.isHandledSwipe()) {
-                        // single finger flicks
-                        swipe = padController.resolveSingleSwipe(swap);
-                        if (swipe != Swipe.NONE) {
-                            actionHandler.handleSwipe(getContext(), swipe);
-                        } else { // all swipe attempts failed so resort to
-                            // entering character
-                            handleTypedCharacter();
-                        }
-                    }
-                    padController.clearLastDotList();
                 }
+                padController.clearLastDotList();
             }
             padController.reset();
 
@@ -531,20 +529,6 @@ public class View extends android.view.View implements PadController.Listener {
         float height = Math.abs(metrics.top - metrics.bottom);
         displayParams.x = getWidth() / 2;
         displayParams.y = (getHeight() / 2) + (height / 2);
-    }
-
-    private boolean handleVoiceInput() {
-        if (System.currentTimeMillis() > padController.getRequiredTouchTime()
-                && padController.getDotsDownCount() == 1
-                && Options.getBooleanPreference(
-                        getContext(),
-                        R.string.pref_voice_shortcut_key,
-                        Boolean.parseBoolean(getContext().getString(
-                                R.string.pref_voice_shortcut_default)))) {
-            actionHandler.doVoiceInput(getContext(), false);
-            return true;
-        }
-        return false;
     }
 
     // PadController.Listener ---------------------------------------------

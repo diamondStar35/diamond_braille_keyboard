@@ -53,6 +53,8 @@ public class PreferenceIME extends AppCompatActivity {
                     SectionActivity.SECTION_KEYBOARD);
             openSection(R.string.pref_category_braille_key,
                     SectionActivity.SECTION_BRAILLE);
+            openSection(R.string.pref_category_braille_input_key,
+                    SectionActivity.SECTION_BRAILLE_INPUT);
             openSection(R.string.pref_category_feedback_key,
                     SectionActivity.SECTION_FEEDBACK);
             openSection(R.string.pref_text_to_speech_key,

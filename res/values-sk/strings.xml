@@ -101,9 +101,6 @@
     <string name="pref_text_to_speech_title">Nastavenia prevodu textu na reč</string>
     <string name="pref_use_eight_dots_summary">Ak je zapnuté, pod bodmi 3 a 6 sa zobrazia body 7 a 8.</string>
     <string name="pref_use_eight_dots_title">Zobraziť 8 bodovú klávesnicu</string>
-    <string name="pref_vibrate_on_exit_title">Vybrovať pri zatvorení klávesnice</string>
-    <string name="pref_voice_shortcut_summary">Ak je zapnuté, pri spustenom programe Talkback je možné dvojitým klepnutím a pridržaním spustiť hlasové zadávanie textu.</string> 
-    <string name="pref_voice_shortcut_title">Skratka hlasového zadávania textu</string>
     <string name="privacy_disabled">Súkromná obrazovka vypnutá</string>
     <string name="privacy_enabled">Súkromná obrazovka zapnutá</string>
     <string name="ready">Klávesnica je pripravená</string>

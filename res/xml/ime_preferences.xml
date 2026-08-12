@@ -25,6 +25,9 @@
              android:key="@string/pref_category_braille_key"
              android:title="@string/pref_category_braille_title" />
          <Preference
+             android:key="@string/pref_category_braille_input_key"
+             android:title="@string/pref_category_braille_input_title" />
+         <Preference
              android:key="@string/pref_category_feedback_key"
              android:title="@string/pref_category_feedback_title" />
          <Preference

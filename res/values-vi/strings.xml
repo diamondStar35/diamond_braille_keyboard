@@ -19,9 +19,6 @@
     <string name="pref_keyboard_style_summary">Configure the layout of the dots on the keyboard.</string>
     <string name="pref_text_to_speech_title">Text To Speech Settings</string>
     <string name="pref_text_to_speech_engine_title">Text To Speech Engine</string>
-    <string name="pref_vibrate_on_exit_title">Vibrate when keyboard closes</string>
-    <string name="pref_voice_shortcut_summary">When enabled double tap and hold to start voice dictation while talkback is enabled.</string> 
-    <string name="pref_voice_shortcut_title">Voice input shortcut</string>
     <string name="spellcheck_not_supported">Spell check is not supported on this version of Android.</string>
     <string name="voice_input_enable">Please perform this gesture twice quickly. A dialog will be displayed use talkback to accept the permission, so that voice input will work.</string>
     <string name="voice_input_error">An error occurred with the voice input engine, code: %d</string>

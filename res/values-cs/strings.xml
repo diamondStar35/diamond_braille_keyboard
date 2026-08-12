@@ -101,9 +101,6 @@
     <string name="pref_text_to_speech_title">Nastavení převodu textu na řeč</string>
     <string name="pref_use_eight_dots_summary">Je-li zaškrtnuto, pod body 3 a 6 se zobrazují body 7 a 8.</string>
     <string name="pref_use_eight_dots_title">Zobrazit osmibodovou klávesnici</string>
-    <string name="pref_vibrate_on_exit_title">Vibrovat při zavření klávesnice</string>
-    <string name="pref_voice_shortcut_summary">Je-li zaškrtnuto, dvojité kliknutí s přidržením zapíná diktování, pokud je zapnutý TalkBack.</string> 
-    <string name="pref_voice_shortcut_title">Gesto pro diktování</string>
     <string name="privacy_disabled">Soukromá obrazovka vypnuta</string>
     <string name="privacy_enabled">Soukromá obrazovka zapnuta</string>
     <string name="ready">klávesnice je připravena</string>

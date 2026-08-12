@@ -101,9 +101,6 @@
     <string name="pref_text_to_speech_title">Configurações do sintetizador de voz</string>
     <string name="pref_use_eight_dots_summary">Quando ativado, mostra os pontos 7 e 8.</string>
     <string name="pref_use_eight_dots_title">Mostrar teclado de oito pontos</string>
-    <string name="pref_vibrate_on_exit_title">Vibrar quando fechar o teclado</string>
-    <string name="pref_voice_shortcut_summary">Quando ativado, você poderá dar dois toques e segurar para iniciar o ditado por voz, enquanto o talkback estiver habilitado.</string> 
-    <string name="pref_voice_shortcut_title">Atalho para ditado por voz</string>
     <string name="privacy_disabled">Tela escura desativada</string>
     <string name="privacy_enabled">Tela escura ativada</string>
     <string name="ready">Teclado ativo</string>

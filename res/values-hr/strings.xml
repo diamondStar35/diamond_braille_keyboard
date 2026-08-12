@@ -101,9 +101,6 @@
     <string name="pref_text_to_speech_title">Postavke pretvaranja teksta u govor</string>
     <string name="pref_use_eight_dots_summary">Kada je uključeno, prikazuje točkice 7 i 8.</string>
     <string name="pref_use_eight_dots_title">Prikaži osmotočkastu tipkovnicu</string>
-    <string name="pref_vibrate_on_exit_title">Vibracija pri zatvaranju tipkovnice</string>
-    <string name="pref_voice_shortcut_summary">Kada je uključeno, dvaput dotaknite i držite kako biste pokrenuli glasovno diktiranje kada je talkback uključen.</string> 
-    <string name="pref_voice_shortcut_title">Prečac glasovnog unosa</string>
     <string name="privacy_disabled">Zaslon privatnosti je isključen</string>
     <string name="privacy_enabled">Zaslon privatnosti je uključen</string>
     <string name="ready">tipkovnica spremna</string>

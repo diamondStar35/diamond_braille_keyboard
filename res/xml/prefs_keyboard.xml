@@ -17,11 +17,6 @@
     <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
          android:title="@string/pref_category_keyboard_title">
          <ListPreference
-             android:key="@string/pref_default_braille_table_key"
-             android:title="@string/pref_default_braille_table_title"
-             android:summary="@string/pref_default_braille_table_summary"
-             android:defaultValue="@string/pref_default_braille_table_last" />
-         <ListPreference
              android:key="@string/pref_default_keyboard_key"
              android:title="@string/pref_default_keyboard_title"
              android:summary="@string/pref_default_keyboard_summary"
@@ -60,11 +55,4 @@
          android:title="@string/pref_show_circles_title"
          android:summary="@string/pref_show_circles_summary"
          android:defaultValue="@string/pref_show_circles_default" />
-         <ListPreference
-             android:key="@string/pref_swipe_sensitivity_key"
-             android:title="@string/pref_swipe_sensitivity_title"
-             android:summary="@string/pref_swipe_sensitivity_summary"
-             android:entries="@array/swipe_sensitivity_entries"
-             android:entryValues="@array/swipe_sensitivity_values"
-             android:defaultValue="@string/default_swipe_sensitivity" />
 </PreferenceScreen>

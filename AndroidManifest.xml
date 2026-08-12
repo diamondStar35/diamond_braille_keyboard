@@ -37,6 +37,8 @@
         <activity android:name=".SectionActivity" android:theme="@style/PrefsTheme" android:exported="false" />
         <activity android:name=".SpeechEventsActivity" android:theme="@style/PrefsTheme" android:exported="false" />
         <activity android:name=".HapticEventsActivity" android:theme="@style/PrefsTheme" android:exported="false" />
+        <activity android:name=".GesturesActivity" android:theme="@style/PrefsTheme" android:exported="false" />
+        <activity android:name=".TouchHoldActivity" android:theme="@style/PrefsTheme" android:exported="false" />
         <activity android:name=".IntentActivity" android:label="" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>

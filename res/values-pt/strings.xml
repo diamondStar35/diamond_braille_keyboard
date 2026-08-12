@@ -101,9 +101,6 @@
     <string name="pref_text_to_speech_title">Definições de Texto para Voz</string>
     <string name="pref_use_eight_dots_summary">Quando estiver activado, apresenta os pontos 7 e 8.</string>
     <string name="pref_use_eight_dots_title">Mostrar teclado de oito pontos</string>
-    <string name="pref_vibrate_on_exit_title">Vibrar ao fechar o teclado</string>
-    <string name="pref_voice_shortcut_summary">Quando estiver activado, dê dois toques e mantenha pressionado para iniciar o ditado por voz enquanto o TalkBack estiver activo.</string> 
-    <string name="pref_voice_shortcut_title">Atalho de introdução por voz</string>
     <string name="privacy_disabled">Ecrã escuro desactivado</string>
     <string name="privacy_enabled">Ecrã escuro activado</string>
     <string name="ready">Teclado apresentado</string>

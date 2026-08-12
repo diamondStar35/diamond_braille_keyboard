@@ -101,9 +101,6 @@
     <string name="pref_text_to_speech_title">Ajustes de texto a voz</string>
     <string name="pref_use_eight_dots_summary">Al habilitarlo, se muestran los puntos 7 y 8.</string>
     <string name="pref_use_eight_dots_title">Mostrar teclado de 8 puntos</string>
-    <string name="pref_vibrate_on_exit_title">Vibrar al ocultar el teclado</string>
-    <string name="pref_voice_shortcut_summary">Al habilitarlo, tocar dos veces y mantener el dedo para iniciar el dictado por voz cuando talkback está en uso.</string> 
-    <string name="pref_voice_shortcut_title">Acceso directo para la entrada de voz</string>
     <string name="privacy_disabled">Pantalla privada deshabilitada</string>
     <string name="privacy_enabled">Pantalla privada habilitada</string>
     <string name="ready">El teclado está listo.</string>

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (C) 2011 Google Inc.
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+          http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+
+    <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+         android:title="@string/pref_category_braille_input_title">
+         <ListPreference
+             android:key="@string/pref_default_braille_table_key"
+             android:title="@string/pref_default_braille_table_title"
+             android:summary="@string/pref_default_braille_table_summary"
+             android:defaultValue="@string/pref_default_braille_table_last" />
+         <CheckBoxPreference
+             android:key="@string/pref_auto_caps_key"
+             android:title="@string/pref_auto_caps_title"
+             android:summary="@string/pref_auto_caps_summary"
+             android:defaultValue="@string/pref_auto_caps_default" />
+         <CheckBoxPreference
+             android:key="@string/pref_double_space_period_key"
+             android:title="@string/pref_double_space_period_title"
+             android:summary="@string/pref_double_space_period_summary"
+             android:defaultValue="@string/pref_double_space_period_default" />
+         <CheckBoxPreference
+             android:key="@string/pref_privacy_key"
+             android:title="@string/pref_privacy_title"
+             android:summary="@string/pref_privacy_summary"
+             android:defaultValue="@string/pref_privacy_default" />
+         <Preference
+             android:key="@string/pref_customize_gestures_key"
+             android:title="@string/pref_customize_gestures_title"
+             android:summary="@string/pref_customize_gestures_summary" />
+         <Preference
+             android:key="@string/pref_customize_touch_hold_key"
+             android:title="@string/pref_customize_touch_hold_title"
+             android:summary="@string/pref_customize_touch_hold_summary" />
+</PreferenceScreen>

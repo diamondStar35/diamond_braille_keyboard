@@ -55,27 +55,14 @@ public class Coords {
         secondY = y;
     }
 
+    /**
+     * The direction of the swipe from the touch position: right or left for
+     * horizontal swipes and up or down for vertical ones.
+     *
+     * @param swap true when the keyboard is used on a portrait screen held in
+     *            landscape, in which case the screen axes are swapped.
+     */
     public byte swipeDirection(int xSwipeThreshold, int ySwipeThreshold,
-            boolean swap, boolean invert) {
-        byte swipe = swipeDirection(xSwipeThreshold, ySwipeThreshold, swap);
-        if (!invert) {
-            return swipe;
-        }
-        switch (swipe) {
-        case DOT_UP:
-            return DOT_DOWN;
-        case DOT_DOWN:
-            return DOT_UP;
-        case DOT_LEFT:
-            return DOT_RIGHT;
-        case DOT_RIGHT:
-            return DOT_LEFT;
-        default:
-            return swipe;
-        }
-    }
-
-    private byte swipeDirection(int xSwipeThreshold, int ySwipeThreshold,
             boolean swap) {
         int xDiff = x - secondX;
         int yDiff = y - secondY;
@@ -86,10 +73,15 @@ public class Coords {
                 return swap ? DOT_RIGHT : DOT_LEFT;
             }
         } else if (Math.abs(yDiff) >= Math.abs(xDiff)) {
+            // Mirrored like the horizontal branch above: when the keyboard
+            // is used on a portrait screen held in landscape (swap), the
+            // screen axes are swapped, so the vertical branch must be
+            // mirrored exactly like the horizontal one to keep the direction
+            // consistent in every configuration.
             if (yDiff > ySwipeThreshold) {
-                return DOT_UP;
+                return swap ? DOT_DOWN : DOT_UP;
             } else if (yDiff < (0 - ySwipeThreshold)) {
-                return DOT_DOWN;
+                return swap ? DOT_UP : DOT_DOWN;
             }
         }
         return DOT_NONE;

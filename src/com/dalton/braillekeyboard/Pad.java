@@ -168,21 +168,25 @@ public abstract class Pad {
     }
 
     public Swipe getMultiFingerSwipe(Coords[] coords, boolean swap) {
-        int fingersDown = 0;
-        int fingersLeft = 0;
-
-        // Since we are reverting swipeDirection, physical down maps to DOT_UP.
-        byte expectedDown = Coords.DOT_UP;
-        byte expectedLeft = Coords.DOT_RIGHT;
-
+        int fingersDown = 0;  // physical down
+        int fingersUp = 0;    // physical up
+        int fingersLeft = 0;  // physical left
+        int fingersRight = 0; // physical right
         for (int i = coords.length - 1; i >= 0; i--) {
             if (coords[i] != null) {
-                // Pass false for invert so that gestures are based purely on physical direction
-                byte dir = coords[i].swipeDirection(swipeThreshold, swipeThreshold, swap, false);
-                if (dir == expectedDown) {
+                // The direction is already described in the physical direction
+                // of the user, so each finger is counted by the way it is
+                // swiped.
+                byte dir = coords[i].swipeDirection(swipeThreshold,
+                        swipeThreshold, swap);
+                if (dir == Coords.DOT_DOWN) {
                     fingersDown++;
-                } else if (dir == expectedLeft) {
+                } else if (dir == Coords.DOT_LEFT) {
                     fingersLeft++;
+                } else if (dir == Coords.DOT_UP) {
+                    fingersUp++;
+                } else if (dir == Coords.DOT_RIGHT) {
+                    fingersRight++;
                 }
             }
         }
@@ -192,8 +196,23 @@ public abstract class Pad {
         if (fingersDown == 3) {
             return Swipe.THREE_FINGERS_DOWN;
         }
+        if (fingersUp == 2) {
+            return Swipe.TWO_FINGERS_UP;
+        }
+        if (fingersUp == 3) {
+            return Swipe.THREE_FINGERS_UP;
+        }
+        if (fingersLeft == 2) {
+            return Swipe.TWO_FINGERS_LEFT;
+        }
         if (fingersLeft == 3) {
             return Swipe.THREE_FINGERS_LEFT;
+        }
+        if (fingersRight == 2) {
+            return Swipe.TWO_FINGERS_RIGHT;
+        }
+        if (fingersRight == 3) {
+            return Swipe.THREE_FINGERS_RIGHT;
         }
         return Swipe.NONE;
     }
@@ -204,9 +223,8 @@ public abstract class Pad {
         for (int i = coords.length - 1; i >= 0; i--) {
             String bitString = "";
             if (coords[i] != null) {
-                // Pass false for invert so that gestures are based purely on physical direction
                 byte direction = coords[i].swipeDirection(swipeThreshold,
-                        swipeThreshold, swap, false);
+                        swipeThreshold, swap);
                 bitString = Integer.toBinaryString(direction);
             }
             // zero padding

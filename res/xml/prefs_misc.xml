@@ -16,28 +16,11 @@
 
     <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
          android:title="@string/pref_category_misc_title">
-         <CheckBoxPreference
-         android:key="@string/pref_auto_caps_key"
-         android:title="@string/pref_auto_caps_title"
-         android:summary="@string/pref_auto_caps_summary"
-         android:defaultValue="@string/pref_auto_caps_default" />
-         <CheckBoxPreference
-         android:key="@string/pref_double_space_period_key"
-         android:title="@string/pref_double_space_period_title"
-         android:summary="@string/pref_double_space_period_summary"
-         android:defaultValue="@string/pref_double_space_period_default" />
-         <CheckBoxPreference
-         android:key="@string/pref_privacy_key"
-         android:title="@string/pref_privacy_title"
-         android:summary="@string/pref_privacy_summary"
-         android:defaultValue="@string/pref_privacy_default" />
-         <CheckBoxPreference
-         android:key="@string/pref_voice_shortcut_key"
-         android:title="@string/pref_voice_shortcut_title"
-         android:summary="@string/pref_voice_shortcut_summary"
-         android:defaultValue="@string/pref_voice_shortcut_default" />
-         <CheckBoxPreference
-         android:key="@string/pref_vibrate_on_exit_key"
-         android:title="@string/pref_vibrate_on_exit_title"
-         android:defaultValue="@string/pref_vibrate_on_exit_default" />
+         <ListPreference
+             android:key="@string/pref_swipe_sensitivity_key"
+             android:title="@string/pref_swipe_sensitivity_title"
+             android:summary="@string/pref_swipe_sensitivity_summary"
+             android:entries="@array/swipe_sensitivity_entries"
+             android:entryValues="@array/swipe_sensitivity_values"
+             android:defaultValue="@string/default_swipe_sensitivity" />
 </PreferenceScreen>

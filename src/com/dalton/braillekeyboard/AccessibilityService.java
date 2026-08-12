@@ -178,7 +178,6 @@ public class AccessibilityService extends android.accessibilityservice.Accessibi
         Display display = windowManager.getDefaultDisplay();
         Region region;
         if (passthroughWanted) {
-            // The user asked for the entire screen to be passed through.
             Point size = new Point();
             display.getRealSize(size);
             region = new Region(0, 0, size.x, size.y);

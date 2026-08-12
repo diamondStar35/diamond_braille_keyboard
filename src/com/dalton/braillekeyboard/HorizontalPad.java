@@ -31,9 +31,6 @@ import android.util.TypedValue;
  * 
  * This implements the appropriate methods to facilitate loading, drawing and
  * saving/restoring a pad of this nature.
- * 
- * It also normalises swipes for the SBK Pad so that it is consistent with other
- * implementations of Pad.
  */
 public class HorizontalPad extends Pad {
     private static final int MAX_HORIZONTAL_DISTANCE = 80; // 2/3 inch;
@@ -130,50 +127,6 @@ public class HorizontalPad extends Pad {
 
     @Override
     public Swipe getSwipe(Coords[] coords, boolean swap) {
-        Swipe swipe = getGenericSwipeAction(coords, swap);
-        switch (swipe) {
-        case ONE_LEFT:
-            return Swipe.ONE_RIGHT;
-        case ONE_RIGHT:
-            return Swipe.ONE_LEFT;
-        case TWO_LEFT:
-            return Swipe.TWO_RIGHT;
-        case TWO_RIGHT:
-            return Swipe.TWO_LEFT;
-        case THREE_LEFT:
-            return Swipe.THREE_RIGHT;
-        case THREE_RIGHT:
-            return Swipe.THREE_LEFT;
-        case FOUR_LEFT:
-            return Swipe.FOUR_RIGHT;
-        case FOUR_RIGHT:
-            return Swipe.FOUR_LEFT;
-        case FIVE_LEFT:
-            return Swipe.FIVE_RIGHT;
-        case FIVE_RIGHT:
-            return Swipe.FIVE_LEFT;
-        case SIX_LEFT:
-            return Swipe.SIX_RIGHT;
-        case SIX_RIGHT:
-            return Swipe.SIX_LEFT;
-        case HOLD_SIX_LEFT:
-            return Swipe.HOLD_SIX_RIGHT;
-        case HOLD_SIX_RIGHT:
-            return Swipe.HOLD_SIX_LEFT;
-        case HOLD_THREE_LEFT:
-            return Swipe.HOLD_THREE_RIGHT;
-        case HOLD_THREE_RIGHT:
-            return Swipe.HOLD_THREE_LEFT;
-        case HOLD_ONE_LEFT:
-            return Swipe.HOLD_ONE_RIGHT;
-        case HOLD_ONE_RIGHT:
-            return Swipe.HOLD_ONE_LEFT;
-        case HOLD_FOUR_LEFT:
-            return Swipe.HOLD_FOUR_RIGHT;
-        case HOLD_FOUR_RIGHT:
-            return Swipe.HOLD_FOUR_LEFT;
-        default:
-            return swipe;
-        }
+        return getGenericSwipeAction(coords, swap);
     }
 }
