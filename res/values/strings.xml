@@ -496,4 +496,26 @@
     <string name="action_previous_spell_suggestion_summary">Moves to the previous spelling suggestion</string>
     <string name="action_shrink_keyboard_title">Shrink keyboard</string>
     <string name="action_shrink_keyboard_summary">Shrinks the keyboard to a small bar</string>
+    <!-- Abbreviation editor -->
+    <string name="abbreviation_editor">Abbreviation Editor</string>
+    <string name="abbreviation_editor_add_title">Add a new abbreviation</string>
+    <string name="abbreviation_editor_edit_title">Edit abbreviation</string>
+    <string name="abbreviation_editor_abbreviation_label">Abbreviation</string>
+    <string name="abbreviation_editor_expansion_label">Expansion</string>
+    <string name="abbreviation_editor_abbreviation_hint">The short text to type, for example brb</string>
+    <string name="abbreviation_editor_expansion_hint">The text to insert when the abbreviation is typed, for example be right back</string>
+    <string name="abbreviation_editor_add">Add abbreviation</string>
+    <string name="abbreviation_editor_delete_selected">Delete selected</string>
+    <string name="abbreviation_editor_select">Select</string>
+    <string name="abbreviation_editor_delete">Delete</string>
+    <string name="abbreviation_editor_done">Done</string>
+    <string name="abbreviation_editor_import">Import from a file</string>
+    <string name="abbreviation_editor_export">Export to a file</string>
+    <string name="abbreviation_editor_delete_all">Delete all</string>
+    <string name="abbreviation_editor_delete_single_message">Are you sure you would like to delete this entry?</string>
+    <string name="abbreviation_editor_delete_many_message">Are you sure you would like to delete these %1$d entries?</string>
+    <string name="abbreviation_editor_delete_all_message">Are you sure you would like to delete all entries?</string>
+    <string name="abbreviation_editor_empty">No abbreviations yet. Use Add abbreviation to create your first one.</string>
+    <string name="abbreviation_editor_invalid">Please enter both an abbreviation and an expansion.</string>
+    <string name="abbreviation_editor_save_error">There was an error saving the abbreviations.</string>
 </resources>

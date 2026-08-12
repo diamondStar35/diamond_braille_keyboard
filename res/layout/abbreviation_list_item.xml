@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A normal, interactive list row: clickable and long-clickable so TalkBack
+  announces it as an actionable list item (double tap to activate, long
+  press for more options) rather than as a plain label. The row implements
+  Checkable, so in select mode the list reports the entry's checked state
+  through the row itself. The checkbox is only a visual indicator: it is
+  not focusable and is never announced on its own, so TalkBack presents one
+  item per entry with the checkbox state folded into it.
+-->
+<com.dalton.braillekeyboard.CheckableLinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:clickable="true"
+    android:gravity="center_vertical"
+    android:longClickable="true"
+    android:orientation="horizontal"
+    android:paddingLeft="12dp"
+    android:paddingRight="12dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp" >
+
+    <!-- Shown only in select mode; its state is set by the row. -->
+    <CheckBox
+        android:id="@+id/cb_abbreviation"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginRight="12dp"
+        android:clickable="false"
+        android:focusable="false"
+        android:importantForAccessibility="no"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical" >
+
+        <TextView
+            android:id="@+id/tv_abbreviation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_expansion"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#66000000"
+            android:textSize="14sp" />
+    </LinearLayout>
+</com.dalton.braillekeyboard.CheckableLinearLayout>

@@ -33,6 +33,7 @@ public class PreferenceIME extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setTitle(R.string.settings_name);
+        InsetsHelper.apply(this);
         getSupportFragmentManager().beginTransaction()
                 .replace(android.R.id.content, new Settings()).commit();
     }

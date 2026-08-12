@@ -297,6 +297,23 @@ public class EditingController implements SpellCheckController.TextProvider {
         Word word = EditingUtilities.getWord(listener);
         String message = word == null ? null : word.word.substring(0,
                 word.charsBefore);
+
+        // Text expansion: when a space is typed right after an abbreviation,
+        // the abbreviation is replaced by its expansion, followed by the
+        // space. The expansion is announced so the user hears what was
+        // inserted instead of the abbreviation that disappeared.
+        if (code == ' ' && message != null && message.length() > 0) {
+            String expansion = new AbbreviationStorage(context)
+                    .findExpansion(message);
+            if (expansion != null) {
+                listener.deleteSurroundingText(message.length(), 0);
+                listener.commitText(expansion + " ", 1);
+                callback.onText("%s", expansion,
+                        listener.isPasswordField());
+                return;
+            }
+        }
+
         listener.onKey(code);
 
         if ((message = echoWord(context, message)) == null) {

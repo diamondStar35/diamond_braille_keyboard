@@ -35,6 +35,7 @@ public class SpeechEventsActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setTitle(R.string.pref_speech_events_title);
+        InsetsHelper.apply(this);
         getSupportFragmentManager().beginTransaction()
                 .replace(android.R.id.content, new Settings()).commit();
     }

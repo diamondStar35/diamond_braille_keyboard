@@ -18,7 +18,6 @@ package com.dalton.braillekeyboard;
 
 import java.util.List;
 
-import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
@@ -33,6 +32,8 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
 
+import androidx.appcompat.app.AppCompatActivity;
+
 /**
  * This is the MainActivity of the application.
  * 
@@ -41,12 +42,13 @@ import android.widget.EditText;
  * the UI for the user to enable this keyboard, practice in a text field,
  * navigate to the Settings screen and to navigate to the user manual.
  */
-public class MainActivity extends Activity {
+public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        InsetsHelper.apply(this);
         updateUIStates();
     }
 
@@ -107,6 +109,8 @@ public class MainActivity extends Activity {
         if (id == R.id.action_settings) {
             Intent intent = new Intent(this, PreferenceIME.class);
             startActivity(intent);
+        } else if (id == R.id.action_abbreviation_editor) {
+            startActivity(new Intent(this, AbbreviationEditorActivity.class));
         }
         return super.onOptionsItemSelected(item);
     }

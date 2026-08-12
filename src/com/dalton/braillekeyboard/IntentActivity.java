@@ -17,11 +17,11 @@
 package com.dalton.braillekeyboard;
 
 import android.Manifest;
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
 /**
@@ -31,7 +31,7 @@ import androidx.core.app.ActivityCompat;
  * is used for things like showing alert dialogs and interracting with other
  * system frameworks normally reserved for use only by activities.
  */
-public class IntentActivity extends Activity {
+public class IntentActivity extends AppCompatActivity {
     // Request code for the record_audio permission
     private static final int PERMISSION_RECORD_AUDIO_REQUEST = 0;
 

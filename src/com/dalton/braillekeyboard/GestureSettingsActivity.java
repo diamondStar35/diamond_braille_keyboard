@@ -20,14 +20,12 @@ import java.util.List;
 
 import android.content.DialogInterface;
 import android.os.Bundle;
-import android.view.View;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.PreferenceScreen;
-import androidx.recyclerview.widget.RecyclerView;
 
 /**
  * Base activity for the gesture customization screens. Each row is one
@@ -50,6 +48,7 @@ public abstract class GestureSettingsActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setTitle(getTitleResource());
+        InsetsHelper.apply(this);
         getSupportFragmentManager().beginTransaction()
                 .replace(android.R.id.content, new Settings()).commit();
     }
@@ -85,28 +84,6 @@ public abstract class GestureSettingsActivity extends AppCompatActivity {
                 screen.addPreference(preference);
             }
             setPreferenceScreen(screen);
-        }
-
-        // The gesture list can be longer than the screen, so leave room for
-        // the system navigation bar at the bottom. Without this padding the
-        // last row is drawn behind the nav bar and its summary (the bound
-        // action) is never visible.
-        @Override
-        public void onViewCreated(View view, Bundle savedInstanceState) {
-            super.onViewCreated(view, savedInstanceState);
-            // PreferenceFragmentCompat's list is its RecyclerView; the layout
-            // id is not android.R.id.list, so getListView() is the reliable
-            // way to reach it.
-            final RecyclerView list = getListView();
-            if (list != null) {
-                int navBar = getResources().getIdentifier(
-                        "navigation_bar_height", "dimen", "android");
-                int bottom = navBar > 0 ? getResources().getDimensionPixelSize(
-                        navBar) : 0;
-                list.setPadding(list.getPaddingLeft(), list.getPaddingTop(),
-                        list.getPaddingRight(), bottom);
-                list.setClipToPadding(false);
-            }
         }
 
         // Show the dialog offering every action for the given gesture. This

@@ -70,6 +70,7 @@ public class SectionActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         int section = getIntent().getIntExtra(EXTRA_SECTION, SECTION_KEYBOARD);
         setTitle(sectionTitle(section));
+        InsetsHelper.apply(this);
         getSupportFragmentManager().beginTransaction()
                 .replace(android.R.id.content, Settings.newInstance(section))
                 .commit();
