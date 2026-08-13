@@ -101,6 +101,26 @@ public final class Diagnostics {
         }
     }
 
+    /**
+     * Delete the log file. The deletion runs on the writer thread so it is
+     * serialized with any pending writes; the file is recreated lazily on
+     * the next logged line.
+     */
+    public static void clearLogs(final Context context) {
+        final Context appContext = context.getApplicationContext();
+        writer.execute(new Runnable() {
+            @Override
+            public void run() {
+                synchronized (LOCK) {
+                    File file = getLogFile(appContext);
+                    if (file.exists()) {
+                        file.delete();
+                    }
+                }
+            }
+        });
+    }
+
     // Append a timestamped line, trimming the file first when it has grown
     // too large. Runs on the single writer thread.
     private static void writeLog(Context context, String message) {

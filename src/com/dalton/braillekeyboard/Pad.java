@@ -319,6 +319,54 @@ public abstract class Pad {
 
     abstract Swipe getSwipe(Coords[] coords, boolean swap);
 
+    /**
+     * A description of the current swipe state for the diagnostic log: whether
+     * the screen axes are swapped, whether the keyboard is inverted, and for
+     * each finger the raw swipe direction before the keyboard inversion is
+     * applied together with the direction actually used. This lets reports of
+     * "gestures are not inverted" be traced back to exactly what the keyboard
+     * detected.
+     */
+    public String getSwipeDiagnostics(Coords[] coords, boolean swap) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("swap=").append(swap).append(",invert=").append(invert);
+        sb.append(",fingers=[");
+        boolean first = true;
+        for (int i = coords.length - 1; i >= 0; i--) {
+            if (coords[i] != null) {
+                if (!first) {
+                    sb.append(' ');
+                }
+                first = false;
+                byte raw = coords[i].swipeDirection(swipeThreshold,
+                        swipeThreshold, swap, false);
+                byte direction = coords[i].swipeDirection(swipeThreshold,
+                        swipeThreshold, swap, invert);
+                sb.append("id").append(coords[i].id)
+                        .append(":raw=").append(directionName(raw))
+                        .append(",dir=").append(directionName(direction));
+            }
+        }
+        sb.append(']');
+        return sb.toString();
+    }
+
+    // The name of a swipe direction, for the diagnostic log.
+    private static String directionName(byte direction) {
+        switch (direction) {
+        case Coords.DOT_LEFT:
+            return "LEFT";
+        case Coords.DOT_RIGHT:
+            return "RIGHT";
+        case Coords.DOT_UP:
+            return "UP";
+        case Coords.DOT_DOWN:
+            return "DOWN";
+        default:
+            return "NONE";
+        }
+    }
+
     protected static int getXGap(List<Coords> list) {
         int[] array = new int[list.size()];
         for (int i = 0; i < list.size(); i++) {

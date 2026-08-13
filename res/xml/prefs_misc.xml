@@ -28,4 +28,8 @@
              android:title="@string/pref_logging_title"
              android:summary="@string/pref_logging_summary"
              android:defaultValue="@string/pref_logging_default" />
+         <Preference
+             android:key="@string/pref_clear_logs_key"
+             android:title="@string/pref_clear_logs_title"
+             android:summary="@string/pref_clear_logs_summary" />
 </PreferenceScreen>

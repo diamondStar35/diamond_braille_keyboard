@@ -508,6 +508,18 @@ public class PadController {
         return pad != null ? pad.getKeyboardType().name() : "none";
     }
 
+    /**
+     * A description of the current swipe state for the diagnostic log (swap
+     * and invert flags plus the raw and used direction of every finger), or
+     * "pad=null" when no pad is active.
+     */
+    public String describeSwipe(boolean swap) {
+        if (pad == null) {
+            return "pad=null";
+        }
+        return pad.getSwipeDiagnostics(dotsDown, swap);
+    }
+
     /** The keys of the active pad, limited to the dots in use. */
     public List<Coords> getKeys() {
         List<Coords> keys = new ArrayList<Coords>();

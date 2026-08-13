@@ -85,6 +85,7 @@
     <string name="require_record_audio_now">REQUIRE_RECORD_AUDIO</string>
     <string name="pref_logging_key">ENABLE_LOGGING</string>
     <string name="pref_logging_default">false</string>
+    <string name="pref_clear_logs_key">CLEAR_LOGS</string>
     <!-- User interface strings go below here -->
     <string name="action_settings">Settings</string>
     <string name="app_name">Soft Braille Keyboard</string>
@@ -234,6 +235,9 @@
     <string name="pref_swipe_sensitivity_title">Swipe sensitivity</string>
     <string name="pref_logging_title">Enable logging</string>
     <string name="pref_logging_summary">Write diagnostic information about the device and the keyboard to a log file to help solve problems</string>
+    <string name="pref_clear_logs_title">Clear logs</string>
+    <string name="pref_clear_logs_summary">Delete the diagnostic log file written by the keyboard</string>
+    <string name="logs_cleared">Logs cleared.</string>
     <string name="action_share_logs">Share logs</string>
     <string name="no_log_file">No log file found yet. Enable logging in the settings and use the keyboard first, then share the logs.</string>
     <string name="share_logs_failed">Could not share the log file.</string>

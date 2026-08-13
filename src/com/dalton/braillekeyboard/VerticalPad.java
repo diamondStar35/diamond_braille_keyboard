@@ -86,30 +86,24 @@ public class VerticalPad extends Pad {
             coords[i] = new Coords(x, y);
             y += offsetHeight;
         }
-        if (invert) {
-            coords = swapKeys(coords);
-        }
         return new VerticalPad(context, coords, width, height, portrait,
                 invert, useEightDots);
     }
 
-    private static Coords[] swapKeys(Coords[] keys) {
-        for (int i = 1; i <= keys.length / 2; i++) {
-            Coords temp = keys[i - 1];
-            keys[i - 1] = keys[keys.length - i];
-            keys[keys.length - i] = temp;
-        }
-        return keys;
-    }
-
     // Assign the six finger positions to the dots.  There are exactly three
     // dots per column, so the x sorted positions are simply split in half:
-    // the three leftmost fingers become dots 1-3 and the three rightmost
-    // become dots 4-6, each ordered top to bottom.  This is robust to fingers
-    // that don't fall neatly into two well separated columns; the old min/max
-    // with a fixed error margin could reject the calibration or, when both
-    // hands rested at similar heights, assign the same fingers to both
-    // columns and scatter the dots.
+    // the three leftmost fingers become one column and the three rightmost
+    // the other, each ordered top to bottom.  This is robust to fingers that
+    // don't fall neatly into two well separated columns; the old min/max with
+    // a fixed error margin could reject the calibration or, when both hands
+    // rested at similar heights, assign the same fingers to both columns and
+    // scatter the dots.
+    //
+    // The invert setting mirrors the layout in every orientation: dots 1-3
+    // land on the right column exactly when portrait and invert agree, and
+    // the vertical reversal used for the inverted portrait layout is only
+    // applied there.  This also makes calibrations respect the invert setting
+    // in landscape, which the old code skipped.
     private void sortKeys(List<Coords> coords, boolean portrait) {
         List<Coords> sorted = new ArrayList<Coords>(coords);
         Collections.sort(sorted, comparatorX);
@@ -117,20 +111,17 @@ public class VerticalPad extends Pad {
         List<Coords> highX = new ArrayList<Coords>(sorted.subList(3, 6));
         Collections.sort(lowX, comparatorY);
         Collections.sort(highX, comparatorY);
+        if (portrait && invert) {
+            Collections.reverse(lowX);
+            Collections.reverse(highX);
+        }
         keys.clear();
-        if (!portrait) {
+        if (invert == portrait) {
             keys.addAll(highX);
             keys.addAll(lowX);
         } else {
-            if (invert) {
-                Collections.reverse(lowX);
-                Collections.reverse(highX);
-                keys.addAll(highX);
-                keys.addAll(lowX);
-            } else {
-                keys.addAll(lowX);
-                keys.addAll(highX);
-            }
+            keys.addAll(lowX);
+            keys.addAll(highX);
         }
     }
 

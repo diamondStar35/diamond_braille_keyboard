@@ -37,6 +37,8 @@ import androidx.preference.MultiSelectListPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 
+import android.widget.Toast;
+
 import com.dalton.braillekeyboard.BrailleType;
 import com.dalton.braillekeyboard.Options.KeyboardEcho;
 import com.dalton.braillekeyboard.Options.KeyboardFeedback;
@@ -179,6 +181,7 @@ public class SectionActivity extends AppCompatActivity {
                 break;
             case SectionActivity.SECTION_MISC:
                 setPreferencesFromResource(R.xml.prefs_misc, rootKey);
+                wireClearLogs();
                 break;
             default:
                 setPreferencesFromResource(R.xml.prefs_keyboard, rootKey);
@@ -365,6 +368,28 @@ public class SectionActivity extends AppCompatActivity {
                     entryValues.add(table.getId());
                 }
             }
+        }
+
+        // "Clear logs" deletes the diagnostic log file and confirms with a
+        // toast. The deletion happens on the logging thread, so the toast
+        // only confirms that the request was accepted.
+        private void wireClearLogs() {
+            Preference clearLogs = findPreference(getString(
+                    R.string.pref_clear_logs_key));
+            if (clearLogs == null) {
+                return;
+            }
+            clearLogs.setOnPreferenceClickListener(
+                    new Preference.OnPreferenceClickListener() {
+                        @Override
+                        public boolean onPreferenceClick(
+                                Preference preference) {
+                            Diagnostics.clearLogs(getActivity());
+                            Toast.makeText(getActivity(), R.string.logs_cleared,
+                                    Toast.LENGTH_SHORT).show();
+                            return true;
+                        }
+                    });
         }
 
         // Launch a sub-screen activity when one of this section's preferences

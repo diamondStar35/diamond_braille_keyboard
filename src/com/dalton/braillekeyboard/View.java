@@ -390,8 +390,7 @@ public class View extends android.view.View implements PadController.Listener {
             // abandoned (the fingers must be held down without lifting).
             padController.cancelCalibrationScheduled();
             if (padController.hasPad() && padController.hasPressedDots()) {
-                boolean swap = getHeight() > getWidth()
-                        && !displayParams.autoRotate;
+                boolean swap = isSwap();
                 swipe = padController.resolveMultiFingerSwipe(swap);
                 if (swipe != Swipe.NONE) {
                     actionHandler.handleSwipe(getContext(), swipe);
@@ -410,7 +409,9 @@ public class View extends android.view.View implements PadController.Listener {
                 padController.clearLastDotList();
             }
             Diagnostics.log(getContext(), "gesture: swipe=" + swipe.name()
-                    + " handled=" + padController.isHandledSwipe());
+                    + " handled=" + padController.isHandledSwipe()
+                    + " action=" + actionName(swipe) + " "
+                    + padController.describeSwipe(isSwap()));
             padController.reset();
             // Nudge the dots towards where the user actually touches them,
             // using the drift measured while typing. This is a no-op when
@@ -441,13 +442,13 @@ public class View extends android.view.View implements PadController.Listener {
         case MotionEventCompat.ACTION_POINTER_UP:
             padController.cancelCalibrationScheduled();
             padController.onPointerMove(id, x, y);
-            swipe = padController.resolveMultiFingerSwipe(getHeight() > getWidth() && !displayParams.autoRotate);
+            swipe = padController.resolveMultiFingerSwipe(isSwap());
             if (swipe != Swipe.NONE) {
                 actionHandler.handleSwipe(getContext(), swipe);
             }
             padController.setDots();
             if (!padController.isHandledSwipe()) {
-                swipe = padController.resolveSingleSwipe(getHeight() > getWidth() && !displayParams.autoRotate);
+                swipe = padController.resolveSingleSwipe(isSwap());
                 if (swipe != Swipe.NONE) {
                     // Hold one finger while swiping with another
                     actionHandler.handleSwipe(getContext(), swipe);
@@ -455,7 +456,9 @@ public class View extends android.view.View implements PadController.Listener {
             }
             Diagnostics.log(getContext(), "gesture(pointer_up): swipe="
                     + swipe.name() + " handled="
-                    + padController.isHandledSwipe());
+                    + padController.isHandledSwipe() + " action="
+                    + actionName(swipe) + " "
+                    + padController.describeSwipe(isSwap()));
             break;
         default:
         }
@@ -508,6 +511,21 @@ public class View extends android.view.View implements PadController.Listener {
     private void handleTypedCharacter() {
         byte value = padController.getPressedDotString();
         actionHandler.handleCharacter(getContext(), value);
+    }
+
+    // True when the view is used on a portrait screen held in landscape, in
+    // which case the touch axes are swapped before any swipe is resolved.
+    private boolean isSwap() {
+        return getHeight() > getWidth() && !displayParams.autoRotate;
+    }
+
+    // The name of the action bound to the resolved gesture, for the
+    // diagnostic log.
+    private String actionName(Swipe swipe) {
+        if (swipe == Swipe.NONE) {
+            return "none";
+        }
+        return swipe.getBoundAction(getContext()).name();
     }
 
     /**

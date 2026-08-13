@@ -16,6 +16,7 @@
 
 package com.dalton.braillekeyboard;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -39,7 +40,7 @@ public class HorizontalPad extends Pad {
             int height, boolean portrait, boolean invert, boolean useEightDots) {
         super(context, coords, width, height, R.string.pad_horizontal, invert);
         save(context, getPrefKey(portrait, invert), portrait);
-        sortKeys(keys, portrait, useEightDots);
+        sortKeys(keys, useEightDots);
     }
 
     public static int getPrefKey(boolean portrait, boolean invert) {
@@ -72,20 +73,8 @@ public class HorizontalPad extends Pad {
             coords[i] = new Coords(x, y);
             x -= offsetWidth;
         }
-        if (invert) {
-            coords = swapKeys(coords);
-        }
         return new HorizontalPad(context, coords, width, height, portrait,
                 invert, useEightDots);
-    }
-
-    private static Coords[] swapKeys(Coords[] keys) {
-        for (int i = 0; i < keys.length / 2; i++) {
-            Coords temp = keys[i];
-            keys[i] = keys[i + keys.length / 2];
-            keys[i + keys.length / 2] = temp;
-        }
-        return keys;
     }
 
     private void insertSpecialDots() {
@@ -102,26 +91,65 @@ public class HorizontalPad extends Pad {
                 rightY < 0 ? 0 : rightY));
     }
 
-    private void sortKeys(List<Coords> coords, boolean portrait,
-            boolean useEightDots) {
+    // Arrange the finger positions into the Braille dots.  The six (or
+    // eight) positions are split by X into a left group and a right group.
+    // When the keyboard is inverted the groups are swapped so dots 1-3 sit
+    // on the physical right (the reverse landscape hold) and dots 4-6 on the
+    // left, matching the tabletop pad of the reference fork and the vertical
+    // pad in every orientation.  The old portrait-only flip put the dots the
+    // wrong way round for the inverted keyboard and broke the gesture
+    // attribution on this pad.
+    private void sortKeys(List<Coords> coords, boolean useEightDots) {
         Collections.sort(coords, comparatorX);
-        Collections.swap(keys, 0, 2);
-        if (useEightDots) {
-            insertSpecialDots();
-        }
-        if (portrait && !invert) {
-            swapLeftRight();
-        }
-    }
-
-    private void swapLeftRight() {
-        int i = 0;
-        int j = 3;
-        while (i < 3 && j < 6) {
-            Collections.swap(keys, i++, j++);
-        }
-        if (keys.size() == 8) {
-            Collections.swap(keys, 6, 7);
+        if (keys.size() == 6) {
+            if (invert) {
+                // Dots 1-3 take the three rightmost positions in order and
+                // dots 4-6 the three leftmost reversed, so the keyboard
+                // reads 6,5,4 | 1,2,3 from left to right.
+                Coords d1 = keys.get(3);
+                Coords d2 = keys.get(4);
+                Coords d3 = keys.get(5);
+                Coords d4 = keys.get(2);
+                Coords d5 = keys.get(1);
+                Coords d6 = keys.get(0);
+                keys.set(0, d1);
+                keys.set(1, d2);
+                keys.set(2, d3);
+                keys.set(3, d4);
+                keys.set(4, d5);
+                keys.set(5, d6);
+            } else {
+                // Dots 1-3 take the three leftmost positions (dot 3 on the
+                // far left) and dots 4-6 the three rightmost.
+                Collections.swap(keys, 0, 2);
+            }
+            if (useEightDots) {
+                insertSpecialDots();
+            }
+        } else if (keys.size() == 8) {
+            List<Coords> sorted = new ArrayList<Coords>(keys);
+            keys.clear();
+            if (invert) {
+                // 8,6,5,4 | 1,2,3,7 from left to right.
+                keys.add(sorted.get(4));
+                keys.add(sorted.get(5));
+                keys.add(sorted.get(6));
+                keys.add(sorted.get(3));
+                keys.add(sorted.get(2));
+                keys.add(sorted.get(1));
+                keys.add(sorted.get(7));
+                keys.add(sorted.get(0));
+            } else {
+                // 7,3,2,1 | 4,5,6,8 from left to right.
+                keys.add(sorted.get(3));
+                keys.add(sorted.get(2));
+                keys.add(sorted.get(1));
+                keys.add(sorted.get(4));
+                keys.add(sorted.get(5));
+                keys.add(sorted.get(6));
+                keys.add(sorted.get(0));
+                keys.add(sorted.get(7));
+            }
         }
     }
 
