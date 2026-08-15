@@ -54,6 +54,8 @@
     <string name="pref_keyboard_feedback_key">KEYBOARD_FEEDBACK</string>
     <string name="pref_keyboard_invert_default">false</string>
     <string name="pref_keyboard_invert_key">KEYBOARD_INVERT</string>
+    <string name="pref_keyboard_fullscreen_default">false</string>
+    <string name="pref_keyboard_fullscreen_key">KEYBOARD_FULLSCREEN</string>
     <string name="pref_keyboard_save_horizontal_landscape_invert_key">KEYBOARD_SAVE_HORIZONTAL_LANDSCAPE_INVERT</string>
     <string name="pref_keyboard_save_horizontal_landscape_key">KEYBOARD_SAVE_HORIZONTAL_LANDSCAPE</string>
     <string name="pref_keyboard_save_horizontal_portrait_invert_key">KEYBOARD_SAVE_HORIZONTAL_PORTRAIT_INVERT</string>
@@ -225,6 +227,8 @@
     <string name="pref_lock_calibration_title">Lock dot positions</string>
     <string name="pref_keyboard_invert_summary">When the keyboard is not rotating with the phone use this setting to flip the orientation of the keyboard 180 degrees</string>
     <string name="pref_keyboard_invert_title">Invert keyboard</string>
+    <string name="pref_keyboard_fullscreen_summary">Show the keyboard over the whole screen so that notifications cannot close it while you type</string>
+    <string name="pref_keyboard_fullscreen_title">Full-screen mode</string>
     <string name="pref_keyboard_style_summary">Configure the layout of the dots on the keyboard: %s</string>
     <string name="pref_keyboard_style_title">Keyboard style</string>
     <string name="pref_privacy_summary">When enabled blacks out the screen as you type for privacy.</string>

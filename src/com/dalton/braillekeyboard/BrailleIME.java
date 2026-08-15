@@ -19,7 +19,9 @@ package com.dalton.braillekeyboard;
 import java.util.Locale;
 
 import android.Manifest;
+import android.os.Build;
 import android.content.Context;
+import android.content.res.Configuration;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.inputmethodservice.InputMethodService;
@@ -27,7 +29,14 @@ import android.inputmethodservice.Keyboard;
 import androidx.core.content.ContextCompat;
 import android.text.InputType;
 import android.view.KeyEvent;
+import android.view.ViewGroup;
+import android.view.ViewParent;
+import android.view.Window;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
+import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
+import android.widget.FrameLayout;
 import android.view.inputmethod.ExtractedText;
 import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.InputConnection;
@@ -112,6 +121,9 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
     // (com.dalton.braillekeyboard.View), which shadows android.view.View here.
     public android.view.View onCreateInputView() {
         super.onCreateInputView();
+        // If a previous keyboard view is still hosted in the full-screen
+        // overlay, drop that stale window before creating the new view.
+        AccessibilityService.removeKeyboardOverlay();
         brailleView = (View) getLayoutInflater().inflate(
                 R.layout.keyboard, null);
 
@@ -154,6 +166,9 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
     @Override
     public void onStartInputView(EditorInfo info, boolean restarting) {
         super.onStartInputView(info, restarting);
+        // Apply the "Full-screen mode" setting to the window; it may have
+        // changed while the keyboard was hidden.
+        applyFullscreenWindow();
         // While the keyboard window is shown, pass the whole screen through to
         // the keyboard so it receives raw touches and gestures even with
         // TalkBack turned on (see AccessibilityService).
@@ -181,6 +196,38 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
             brailleParser.applyStartupTable(this);
         }
         brailleParser.setTranslator(this);
+        // Full-screen mode: host the keyboard in a topmost accessibility
+        // overlay covering the whole screen (system bars included), so a
+        // notification cannot close it while typing. Otherwise make sure the
+        // keyboard lives in the IME window's input frame.
+        if (isFullscreenPreferred() && brailleView != null) {
+            AccessibilityService.showKeyboardOverlay(brailleView);
+        } else {
+            restoreViewToInputFrame();
+        }
+    }
+
+    /**
+     * Puts the keyboard view back into the IME window's input frame when it
+     * is not hosted by the full-screen overlay (e.g. after the overlay was
+     * removed because the setting was turned off).
+     */
+    private void restoreViewToInputFrame() {
+        if (brailleView == null || brailleView.isAttachedToWindow()) {
+            return;
+        }
+        ViewParent parent = brailleView.getParent();
+        if (parent instanceof ViewGroup) {
+            ((ViewGroup) parent).removeView(brailleView);
+        }
+        android.view.View inputFrame = getWindow().getWindow().getDecorView()
+                .findViewById(android.R.id.inputArea);
+        if (inputFrame instanceof ViewGroup) {
+            ((ViewGroup) inputFrame).addView(brailleView,
+                    new FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT));
+        }
     }
 
     @Override
@@ -190,6 +237,8 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         // The keyboard window is gone, so TalkBack can handle the screen
         // normally again.
         AccessibilityService.setKeyboardPassthrough(false);
+        // If the keyboard was hosted in the full-screen overlay, remove it.
+        AccessibilityService.removeKeyboardOverlay();
         emojiMode = false;
         commandMode = false;
         if (commandModeEngine != null) {
@@ -218,12 +267,114 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
 
     @Override
     public boolean onEvaluateFullscreenMode() {
-        // The view dictates whether we are using the full screen.
-        // If the keyboard is being used it will always take up the whole
-        // screen.
-        // If the keyboard is in the shrink state it will not use the full
-        // screen.
-        return brailleView != null ? !brailleView.getShrinkKeyboard() : false;
+        // The keyboard runs in fullscreen mode only when the user enabled the
+        // "Full-screen mode" setting (and it is not shrunk). In fullscreen
+        // mode the IME window covers the whole screen, so a notification
+        // appearing cannot push the keyboard away while typing.
+        return isFullscreenPreferred();
+    }
+
+    // Whether the user wants the keyboard to cover the whole screen.
+    private boolean isFullscreenPreferred() {
+        boolean fullscreen = Options.getBooleanPreference(this,
+                R.string.pref_keyboard_fullscreen_key,
+                Boolean.parseBoolean(getString(
+                        R.string.pref_keyboard_fullscreen_default)));
+        return fullscreen
+                && (brailleView == null || !brailleView.getShrinkKeyboard());
+    }
+
+    @Override
+    public android.view.View onCreateExtractTextView() {
+        // Never show the default text-extraction UI: in fullscreen mode the
+        // whole window is the Braille keyboard.
+        return null;
+    }
+
+    /**
+     * Applies the "Full-screen mode" setting to the IME window: when enabled
+     * the keyboard is laid out over the whole screen and the status and
+     * navigation bars are hidden, so a notification cannot close the
+     * keyboard while the user is typing; when disabled the keyboard keeps
+     * the normal window, which fits the system bars. Called every time the
+     * keyboard is shown (and on configuration changes), since the setting
+     * may have changed while the keyboard was not active.
+     */
+    private void applyFullscreenWindow() {
+        boolean fullscreen = isFullscreenPreferred();
+        Window window = getWindow().getWindow();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Modern insets API: stop fitting the keyboard content below the
+            // system bars and draw behind them when fullscreen is enabled.
+            WindowManager.LayoutParams lp = window.getAttributes();
+            int fit = lp.getFitInsetsTypes();
+            if (fullscreen) {
+                fit &= ~(WindowInsets.Type.statusBars()
+                        | WindowInsets.Type.navigationBars());
+            } else {
+                fit |= WindowInsets.Type.statusBars()
+                        | WindowInsets.Type.navigationBars();
+            }
+            lp.setFitInsetsTypes(fit);
+            window.setAttributes(lp);
+            window.setDecorFitsSystemWindows(!fullscreen);
+            WindowInsetsController controller =
+                    window.getDecorView().getWindowInsetsController();
+            if (controller != null) {
+                if (fullscreen) {
+                    // Truly full-screen: hide the bars so the keyboard
+                    // covers everything, like ABK.
+                    controller.hide(WindowInsets.Type.systemBars());
+                    controller.setSystemBarsBehavior(
+                            WindowInsetsController
+                                    .BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                } else {
+                    controller.show(WindowInsets.Type.systemBars());
+                }
+            }
+        } else {
+            // Older Android: use the legacy system UI flags to hide the
+            // bars (FLAG_FULLSCREEN also makes the window cover the status
+            // bar).
+            android.view.View decor = window.getDecorView();
+            int uiFlags = decor.getSystemUiVisibility();
+            if (fullscreen) {
+                window.addFlags(
+                        WindowManager.LayoutParams.FLAG_FULLSCREEN
+                                | WindowManager.LayoutParams
+                                        .FLAG_LAYOUT_NO_LIMITS);
+                decor.setSystemUiVisibility(uiFlags
+                        | android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                        | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        | android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                        | android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        | android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        | android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+            } else {
+                window.clearFlags(
+                        WindowManager.LayoutParams.FLAG_FULLSCREEN
+                                | WindowManager.LayoutParams
+                                        .FLAG_LAYOUT_NO_LIMITS);
+                decor.setSystemUiVisibility(uiFlags
+                        & ~(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                                | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                | android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                                | android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                                | android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                                | android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE));
+            }
+        }
+        // Re-evaluate the framework fullscreen mode so the window height
+        // follows (MATCH_PARENT when fullscreen, WRAP_CONTENT otherwise).
+        updateFullscreenMode();
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        // Re-apply the full-screen setting after a configuration change
+        // (e.g. rotation), which can restore the system bars.
+        applyFullscreenWindow();
     }
 
     private void brailleParserReady(int status) {

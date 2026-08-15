@@ -23,14 +23,21 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
+import android.graphics.Color;
+import android.graphics.PixelFormat;
 import android.graphics.Point;
 import android.graphics.Region;
 import android.os.Build;
 import android.os.SystemClock;
 import android.view.Display;
+import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityManager;
+import android.widget.FrameLayout;
 
 /**
  * Accessibility service that makes the Braille keyboard usable while a screen
@@ -59,6 +66,9 @@ public class AccessibilityService extends android.accessibilityservice.Accessibi
 
     /** True when the IME currently wants the whole screen passed through. */
     private static boolean passthroughWanted = false;
+
+    /** The container of the full-screen keyboard overlay, or null. */
+    private static View keyboardOverlayContainer = null;
 
     /** Caches the result of the enabled-services query for a short time. */
     private static long lastEnabledCheckTime = 0;
@@ -105,6 +115,95 @@ public class AccessibilityService extends android.accessibilityservice.Accessibi
             instance = null;
         }
         super.onDestroy();
+    }
+
+    /**
+     * Moves the keyboard into a full-screen accessibility-overlay window.
+     *
+     * <p>An IME window cannot hide the system bars on modern Android (the
+     * system keeps them visible while the keyboard is shown), so the only
+     * way to make the keyboard truly full-screen is to host it in an
+     * accessibility overlay, which is the topmost window layer and covers
+     * the status and navigation bars. This is the same approach as the
+     * reference keyboard.
+     *
+     * @param keyboard The keyboard view to move into the overlay; it is
+     *            reparented out of the IME window.
+     * @return True when the overlay was created; false when this service is
+     *         not connected, in which case the caller should keep the
+     *         keyboard in the IME window.
+     */
+    public static boolean showKeyboardOverlay(View keyboard) {
+        if (instance == null) {
+            return false;
+        }
+        return instance.showKeyboardOverlayInternal(keyboard);
+    }
+
+    private boolean showKeyboardOverlayInternal(View keyboard) {
+        removeKeyboardOverlay();
+        // For an accessibility service this window manager creates overlay
+        // windows without needing the SYSTEM_ALERT_WINDOW permission.
+        WindowManager windowManager = (WindowManager) getSystemService(
+                Context.WINDOW_SERVICE);
+        if (windowManager == null) {
+            return false;
+        }
+        // Opaque backing so the app content never shows through the keyboard
+        // while it covers the whole screen.
+        FrameLayout container = new FrameLayout(getApplicationContext());
+        container.setBackgroundColor(Color.BLACK);
+        ViewParent parent = keyboard.getParent();
+        if (parent instanceof ViewGroup) {
+            ((ViewGroup) parent).removeView(keyboard);
+        }
+        container.addView(keyboard, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                        | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT);
+        params.gravity = Gravity.TOP | Gravity.START;
+        try {
+            windowManager.addView(container, params);
+        } catch (RuntimeException e) {
+            // The overlay could not be created (e.g. the service is being
+            // torn down); the caller keeps the keyboard in the IME window.
+            return false;
+        }
+        keyboardOverlayContainer = container;
+        return true;
+    }
+
+    /**
+     * Removes the full-screen keyboard overlay, if any. The keyboard view is
+     * left detached; the IME restores it into its own window if needed.
+     */
+    public static void removeKeyboardOverlay() {
+        if (instance != null) {
+            instance.removeKeyboardOverlayInternal();
+        }
+    }
+
+    private void removeKeyboardOverlayInternal() {
+        if (keyboardOverlayContainer == null) {
+            return;
+        }
+        try {
+            WindowManager windowManager = (WindowManager) getSystemService(
+                    Context.WINDOW_SERVICE);
+            if (windowManager != null) {
+                windowManager.removeView(keyboardOverlayContainer);
+            }
+        } catch (IllegalArgumentException e) {
+            // The window was already removed.
+        }
+        keyboardOverlayContainer = null;
     }
 
     /**
