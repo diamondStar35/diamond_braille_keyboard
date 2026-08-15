@@ -83,9 +83,9 @@ public class EmojiEngine {
 
     private static final String ROW_NOTATION = "KLMNOPQRSTUVWXYZ";
 
-    private Speech speech;
+    private final Speech speech;
 
-    public EmojiEngine(Context context, KeyboardListener listener) {
+    public EmojiEngine(Context context, KeyboardListener listener, Speech speech) {
         this.context = context;
         this.categoryNames = new String[] {
             context.getString(R.string.emoji_category_smileys),
@@ -104,10 +104,7 @@ public class EmojiEngine {
         };
         this.listener = listener;
         this.prefs = context.getSharedPreferences("EmojiFavorites", Context.MODE_PRIVATE);
-        this.speech = new Speech(context, new Speech.OnReadyListener() {
-            @Override
-            public void ttsReady() {}
-        });
+        this.speech = speech;
         loadEmojis();
         loadFavorites();
     }

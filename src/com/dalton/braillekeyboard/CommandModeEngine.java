@@ -118,14 +118,11 @@ public class CommandModeEngine {
     // not while we are selecting. -1 when there is no selection.
     private int cursor = -1;
 
-    public CommandModeEngine(Context context, KeyboardListener listener) {
+    public CommandModeEngine(Context context, KeyboardListener listener,
+            Speech speech) {
         this.context = context;
         this.listener = listener;
-        this.speech = new Speech(context, new Speech.OnReadyListener() {
-            @Override
-            public void ttsReady() {
-            }
-        });
+        this.speech = speech;
     }
 
     /** Announce the start of command mode and reset any selection state. */

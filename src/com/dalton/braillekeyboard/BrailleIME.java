@@ -81,8 +81,20 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
     @Override
     public void onCreate() {
         super.onCreate();
-        emojiEngine = new EmojiEngine(this, this);
-        commandModeEngine = new CommandModeEngine(this, this);
+        // The emoji and command engines share a single Speech instance: Speech
+        // keeps a single static TTS engine, and each new Speech constructor
+        // replaces it with a freshly-initialising engine. Constructing two
+        // Speech instances back-to-back here orphaned the first one's engine
+        // before its asynchronous initialisation finished, permanently
+        // silencing it (the emoji engine). View creates its own Speech later,
+        // when the keyboard is first shown.
+        Speech speech = new Speech(this, new Speech.OnReadyListener() {
+            @Override
+            public void ttsReady() {
+            }
+        });
+        emojiEngine = new EmojiEngine(this, this, speech);
+        commandModeEngine = new CommandModeEngine(this, this, speech);
         if (brailleParser == null) {
             brailleParser = new Parser(this,
                     new Parser.Listener() {
