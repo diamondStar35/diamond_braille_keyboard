@@ -51,6 +51,8 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         TextComposer.Host {
     private boolean emojiMode = false;
     private EmojiEngine emojiEngine;
+    private boolean commandMode = false;
+    private CommandModeEngine commandModeEngine;
 
     private Parser brailleParser;
     private View brailleView = null;
@@ -80,6 +82,7 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
     public void onCreate() {
         super.onCreate();
         emojiEngine = new EmojiEngine(this, this);
+        commandModeEngine = new CommandModeEngine(this, this);
         if (brailleParser == null) {
             brailleParser = new Parser(this,
                     new Parser.Listener() {
@@ -124,6 +127,10 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         // remove any existing selection.
         selectAll = false;
         mark = -1;
+        commandMode = false;
+        if (commandModeEngine != null) {
+            commandModeEngine.reset();
+        }
 
         // Disable prediction (composing text) by default.  Our manual
         // differential update logic in compose() is much more robust and
@@ -172,6 +179,10 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         // normally again.
         AccessibilityService.setKeyboardPassthrough(false);
         emojiMode = false;
+        commandMode = false;
+        if (commandModeEngine != null) {
+            commandModeEngine.reset();
+        }
         InputConnection ic = getCurrentInputConnection();
         if (ic != null) {
             textComposer.finishComposingText(false);
@@ -395,6 +406,12 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
     public void toggleEmojiMode() {
         emojiMode = !emojiMode;
         if (emojiMode) {
+            // Command mode and emoji mode are exclusive: entering one leaves
+            // the other.
+            commandMode = false;
+            if (commandModeEngine != null) {
+                commandModeEngine.reset();
+            }
             textComposer.finishComposingText(true);
             emojiEngine.onEmojiModeEntered();
         } else {
@@ -403,10 +420,48 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
     }
 
     @Override
+    public boolean isCommandMode() {
+        return commandMode;
+    }
+
+    @Override
+    public void toggleCommandMode() {
+        commandMode = !commandMode;
+        if (commandMode) {
+            // Command mode and emoji mode are exclusive: entering one leaves
+            // the other.
+            emojiMode = false;
+            textComposer.finishComposingText(true);
+            commandModeEngine.onModeEntered();
+        } else {
+            commandModeEngine.onModeExited();
+        }
+    }
+
+    @Override
+    public boolean handleCommandSwipe(Swipe swipe) {
+        return commandModeEngine.handleGesture(swipe);
+    }
+
+    @Override
+    public boolean setSelection(int start, int end) {
+        return setSelectionRange(start, end);
+    }
+
+    @Override
     public String handleTypedCharacter(byte dots) {
         if (emojiMode) {
             emojiEngine.handleInput(dots);
             return null;
+        }
+        if (commandMode) {
+            // Command mode intercepts every cell: the command cells perform
+            // their editing command (and announce it), while any other cell
+            // fires the normal typing event but is not translated and types
+            // nothing. Returning "" (not null) keeps the typing echo path
+            // from announcing "unknown character".
+            commandModeEngine.handleInput(dots);
+            return "";
         }
         return textComposer.handleTypedCharacter(brailleParser, dots);
     }
@@ -439,8 +494,26 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
 
     @Override
     public boolean isPasswordField() {
-        int inputType = getCurrentInputEditorInfo().inputType;
-        return (inputType & InputType.TYPE_TEXT_VARIATION_PASSWORD) != 0;
+        EditorInfo info = getCurrentInputEditorInfo();
+        if (info == null) {
+            return false;
+        }
+        int inputType = info.inputType;
+        // Only text fields can be password fields. Compare the whole
+        // variation field against the exact hidden-password variations
+        // instead of a single bit: TYPE_TEXT_VARIATION_PASSWORD is only one
+        // bit of the variation mask, so masking with it alone also matched
+        // unrelated variations that share that bit (e.g. WEB_EMAIL_ADDRESS
+        // and FILTER), making ordinary web-form fields look like password
+        // fields. VISIBLE_PASSWORD is deliberately excluded: apps set it
+        // when the user toggles "show password", so the text is visible and
+        // the keyboard should echo it normally.
+        if ((inputType & InputType.TYPE_MASK_CLASS) != InputType.TYPE_CLASS_TEXT) {
+            return false;
+        }
+        int variation = inputType & InputType.TYPE_MASK_VARIATION;
+        return variation == InputType.TYPE_TEXT_VARIATION_PASSWORD
+                || variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD;
     }
 
     @Override
@@ -484,7 +557,7 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, keyEventCode));
     }
 
-    private boolean setSelection(int start, int end) {
+    private boolean setSelectionRange(int start, int end) {
         InputConnection ic = getCurrentInputConnection();
         if (ic == null) {
             return false;

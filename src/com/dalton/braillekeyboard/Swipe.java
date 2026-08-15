@@ -50,7 +50,8 @@ public enum Swipe {
     TWO_FINGERS_LEFT(fingers(2, Direction.LEFT), KeyboardAction.NONE),
     TWO_FINGERS_RIGHT(fingers(2, Direction.RIGHT), KeyboardAction.NONE),
     THREE_FINGERS_DOWN(fingers(3, Direction.DOWN), KeyboardAction.SUBMIT_TEXT),
-    THREE_FINGERS_LEFT(fingers(3, Direction.LEFT), KeyboardAction.NONE),
+    THREE_FINGERS_LEFT(fingers(3, Direction.LEFT),
+            KeyboardAction.TOGGLE_COMMAND_MODE),
     THREE_FINGERS_UP(fingers(3, Direction.UP), KeyboardAction.NONE),
     THREE_FINGERS_RIGHT(fingers(3, Direction.RIGHT), KeyboardAction.TOGGLE_EMOJI),
 
@@ -216,6 +217,12 @@ public enum Swipe {
     /** Whether this is a touch-hold command (hold a dot, swipe another). */
     public boolean isTouchHold() {
         return shape.kind == Kind.HOLD;
+    }
+
+    /** Whether this is a multi-finger gesture (swipe with two or more
+     *  fingers, not bound to any particular dot). */
+    public boolean isMultiFinger() {
+        return shape.kind == Kind.MULTI_FINGER;
     }
 
     /** The preference key storing the user's binding for this gesture. */

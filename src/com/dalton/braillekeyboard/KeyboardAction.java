@@ -376,6 +376,14 @@ public enum KeyboardAction {
             ctx.listener().toggleEmojiMode();
         }
     },
+    TOGGLE_COMMAND_MODE(R.string.action_toggle_command_mode_title,
+            R.string.action_toggle_command_mode_summary) {
+        @Override
+        public void perform(ActionContext ctx, boolean fastDoubleSwipe) {
+            ctx.notify(FeedbackEvent.COMMAND);
+            ctx.listener().toggleCommandMode();
+        }
+    },
     NEXT_EDIT_ACTION(R.string.action_next_edit_action_title,
             R.string.action_next_edit_action_summary) {
         @Override

@@ -98,8 +98,15 @@ public class PadController {
     /**
      * Record a finger going down. Also starts the timer for how long the
      * fingers must be held down before a calibration attempt is accepted.
+     *
+     * <p>A fresh finger landing starts a new gesture attempt: when a
+     * touch-hold gesture has already been handled (e.g. hold dot 1 and swipe
+     * dot 4), the user can repeat it by lifting and re-touching the swiped
+     * dot while still holding the first, without the previously handled
+     * gesture blocking the new one.
      */
     public void onPointerDown(int id, int x, int y) {
+        handledSwipe = false;
         if (!updatePointer(id, x, y, true) && id < dotsDown.length) {
             // add a new unique dot to the list of dots that were pushed.
             dotsDown[id] = new Coords(id, x, y);

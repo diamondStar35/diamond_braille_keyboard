@@ -215,6 +215,305 @@ public class EditingUtilities {
         return new Word("", 0, 0);
     }
 
+    // Move the cursor to the first letter of the current word: the word
+    // whose letters end at or contain the cursor. If the cursor sits on a
+    // separator, the current word is the next word ahead.
+    public static Word moveToStartOfWord(KeyboardListener listener) {
+        int cursor = listener.getCursor();
+        CharSequence before = listener.getTextBeforeCursor(MAX_WORD_LENGTH);
+        if (cursor < 0 || before == null) {
+            return null;
+        }
+        int start = before.length();
+        while (start > 0 && !isWordSeparator(before.charAt(start - 1))) {
+            --start;
+        }
+        if (start == before.length()) {
+            // The cursor is on a separator: move to the start of the next
+            // word ahead, skipping any separators.
+            CharSequence after = listener.getTextAfterCursor(MAX_WORD_LENGTH);
+            if (after == null) {
+                return null;
+            }
+            int forward = 0;
+            while (forward < after.length()
+                    && isWordSeparator(after.charAt(forward))) {
+                ++forward;
+            }
+            if (forward >= after.length()) {
+                Word word = new Word("", 0, 0);
+                word.moveRight = false;
+                return word; // no next word: end of text
+            }
+            int wordEnd = forward;
+            while (wordEnd < after.length()
+                    && !isWordSeparator(after.charAt(wordEnd))) {
+                ++wordEnd;
+            }
+            listener.setSelection(cursor + forward);
+            Word word = new Word(after.subSequence(forward, wordEnd)
+                    .toString(), 0, forward);
+            word.moveRight = true;
+            return word;
+        }
+        listener.setSelection(cursor - (before.length() - start));
+        Word word = new Word(before.subSequence(start, before.length())
+                .toString(), before.length() - start, 0);
+        word.moveLeft = true;
+        return word;
+    }
+
+    // Move the cursor to immediately after the last letter of the current
+    // word. If the cursor sits on a separator, the current word is the next
+    // word ahead.
+    public static Word moveToEndOfWord(KeyboardListener listener) {
+        int cursor = listener.getCursor();
+        CharSequence after = listener.getTextAfterCursor(MAX_WORD_LENGTH);
+        if (cursor < 0 || after == null) {
+            return null;
+        }
+        int end = 0;
+        while (end < after.length() && !isWordSeparator(after.charAt(end))) {
+            ++end;
+        }
+        if (end == 0) {
+            // The cursor is on a separator: skip to the end of the next word.
+            int forward = 0;
+            while (forward < after.length()
+                    && isWordSeparator(after.charAt(forward))) {
+                ++forward;
+            }
+            if (forward >= after.length()) {
+                Word word = new Word("", 0, 0);
+                word.moveRight = false;
+                return word; // no next word: end of text
+            }
+            int wordEnd = forward;
+            while (wordEnd < after.length()
+                    && !isWordSeparator(after.charAt(wordEnd))) {
+                ++wordEnd;
+            }
+            listener.setSelection(cursor + wordEnd);
+            Word word = new Word(after.subSequence(forward, wordEnd)
+                    .toString(), 0, wordEnd);
+            word.moveRight = true;
+            return word;
+        }
+        CharSequence before = listener.getTextBeforeCursor(MAX_WORD_LENGTH);
+        StringBuilder wordText = new StringBuilder();
+        if (before != null) {
+            int start = before.length();
+            while (start > 0 && !isWordSeparator(before.charAt(start - 1))) {
+                --start;
+            }
+            wordText.append(before.subSequence(start, before.length()));
+        }
+        wordText.append(after.subSequence(0, end));
+        listener.setSelection(cursor + end);
+        Word word = new Word(wordText.toString(), 0, end);
+        word.moveRight = true;
+        return word;
+    }
+
+    // Move the cursor to the first letter of the current line. Empty lines
+    // are not skipped: the cursor rests on the blank line itself.
+    public static Word moveToStartOfLine(KeyboardListener listener) {
+        int cursor = listener.getCursor();
+        CharSequence before = listener.getTextBeforeCursor(MAX_LINE_LENGTH);
+        CharSequence after = listener.getTextAfterCursor(MAX_LINE_LENGTH);
+        if (cursor < 0 || before == null || after == null) {
+            return null;
+        }
+        int start = before.length();
+        while (start > 0 && before.charAt(start - 1) != '\n') {
+            --start;
+        }
+        listener.setSelection(cursor - (before.length() - start));
+        Word word = new Word(lineText(before, start, after), 0, 0);
+        word.moveLeft = true;
+        return word;
+    }
+
+    // Move the cursor to immediately after the last letter of the current
+    // line (before the line break, or at the end of the text).
+    public static Word moveToEndOfLine(KeyboardListener listener) {
+        int cursor = listener.getCursor();
+        CharSequence before = listener.getTextBeforeCursor(MAX_LINE_LENGTH);
+        CharSequence after = listener.getTextAfterCursor(MAX_LINE_LENGTH);
+        if (cursor < 0 || before == null || after == null) {
+            return null;
+        }
+        int end = 0;
+        while (end < after.length() && after.charAt(end) != '\n') {
+            ++end;
+        }
+        int start = before.length();
+        while (start > 0 && before.charAt(start - 1) != '\n') {
+            --start;
+        }
+        listener.setSelection(cursor + end);
+        Word word = new Word(lineText(before, start, after), 0, end);
+        word.moveRight = true;
+        return word;
+    }
+
+    // Move to the start of the previous paragraph. Paragraphs are blocks of
+    // one or more non-blank lines separated by blank lines. Returns a Word
+    // describing the paragraph that was moved to; moveLeft is false when the
+    // cursor is already at the start of the text.
+    public static Word moveToPreviousParagraph(KeyboardListener listener) {
+        ExtractedText extractedText = listener.getAllText();
+        if (extractedText == null || extractedText.text == null) {
+            return null;
+        }
+        String text = extractedText.text.toString();
+        int cursor = listener.getCursor();
+        if (cursor < 0) {
+            return null;
+        }
+        String[] lines = text.split("\n", -1);
+        int current = lineAt(text, cursor);
+        int target = current;
+        if (isBlankLine(lines[target])) {
+            // The cursor is on a blank line: the run before the blank lines
+            // is the previous paragraph.
+            while (target > 0 && isBlankLine(lines[target])) {
+                --target;
+            }
+            if (target == current) {
+                Word word = new Word("", 0, 0);
+                word.moveLeft = false;
+                return word; // the whole text before is blank
+            }
+            while (target > 0 && !isBlankLine(lines[target - 1])) {
+                --target;
+            }
+            return paragraphWord(listener, lines, target, cursor);
+        }
+        // The cursor is inside a paragraph: walk to its start, then across
+        // the blank lines to the run before it.
+        while (target > 0 && !isBlankLine(lines[target - 1])) {
+            --target;
+        }
+        while (target > 0 && isBlankLine(lines[target - 1])) {
+            --target;
+        }
+        while (target > 0 && !isBlankLine(lines[target - 1])) {
+            --target;
+        }
+        if (target == current) {
+            Word word = new Word("", 0, 0);
+            word.moveLeft = false;
+            return word; // no previous paragraph: start of text
+        }
+        return paragraphWord(listener, lines, target, cursor);
+    }
+
+    // Move to the start of the next paragraph. Paragraphs are blocks of one
+    // or more non-blank lines separated by blank lines. Returns a Word
+    // describing the paragraph that was moved to; moveRight is false when
+    // the cursor is already at the end of the text.
+    public static Word moveToNextParagraph(KeyboardListener listener) {
+        ExtractedText extractedText = listener.getAllText();
+        if (extractedText == null || extractedText.text == null) {
+            return null;
+        }
+        String text = extractedText.text.toString();
+        int cursor = listener.getCursor();
+        if (cursor < 0) {
+            return null;
+        }
+        String[] lines = text.split("\n", -1);
+        int current = lineAt(text, cursor);
+        int target = current;
+        if (isBlankLine(lines[target])) {
+            // Skip the blank lines the cursor is on; if anything non-blank
+            // follows, it is the next paragraph.
+            while (target < lines.length - 1 && isBlankLine(lines[target])) {
+                ++target;
+            }
+            if (isBlankLine(lines[target])) {
+                Word word = new Word("", 0, 0);
+                word.moveRight = false;
+                return word; // the rest of the text is blank
+            }
+        } else {
+            // Walk to the end of the current run, across any blank lines, and
+            // on to the start of the next run.
+            while (target < lines.length - 1
+                    && !isBlankLine(lines[target + 1])) {
+                ++target;
+            }
+            while (target < lines.length - 1 && isBlankLine(lines[target + 1])) {
+                ++target;
+            }
+            ++target;
+            if (target >= lines.length) {
+                Word word = new Word("", 0, 0);
+                word.moveRight = false;
+                return word; // no next paragraph: end of text
+            }
+        }
+        return paragraphWord(listener, lines, target, cursor);
+    }
+
+    private static boolean isWordSeparator(char character) {
+        return matchesSeparator(character, WORD_SEPARATORS);
+    }
+
+    // The text of the line starting at index 'start' of 'before', extended
+    // with the characters of 'after' up to the next line break.
+    private static String lineText(CharSequence before, int start,
+            CharSequence after) {
+        StringBuilder line = new StringBuilder(
+                before.subSequence(start, before.length()));
+        if (after != null) {
+            for (int i = 0; i < after.length() && after.charAt(i) != '\n'; i++) {
+                line.append(after.charAt(i));
+            }
+        }
+        return line.toString();
+    }
+
+    // A line is blank when it is empty or contains only whitespace.
+    private static boolean isBlankLine(String line) {
+        return line.trim().isEmpty();
+    }
+
+    // The index of the line (0 based) containing the given text position.
+    private static int lineAt(String text, int position) {
+        int line = 0;
+        int limit = Math.min(position, text.length());
+        for (int i = 0; i < limit; i++) {
+            if (text.charAt(i) == '\n') {
+                ++line;
+            }
+        }
+        return line;
+    }
+
+    // Build the Word describing a move to the start of the paragraph whose
+    // first line is 'target': the paragraph text and the distance moved.
+    private static Word paragraphWord(KeyboardListener listener,
+            String[] lines, int target, int cursor) {
+        int runEnd = target;
+        while (runEnd < lines.length - 1 && !isBlankLine(lines[runEnd + 1])) {
+            ++runEnd;
+        }
+        StringBuilder paragraph = new StringBuilder(lines[target]);
+        for (int i = target + 1; i <= runEnd; i++) {
+            paragraph.append('\n').append(lines[i]);
+        }
+        int dest = 0;
+        for (int i = 0; i < target; i++) {
+            dest += lines[i].length() + 1;
+        }
+        listener.setSelection(dest);
+        Word word = new Word(paragraph.toString(), cursor - dest, 0);
+        word.moveLeft = true;
+        return word;
+    }
+
     public static String getCharacter(KeyboardListener listener) {
         CharSequence text = listener.getTextAfterCursor(1);
         return text == null ? null : text.toString();

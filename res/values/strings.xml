@@ -494,6 +494,8 @@
     <string name="action_switch_braille_type_summary">Switches between six dot and eight dot braille</string>
     <string name="action_toggle_emoji_title">Toggle emoji mode</string>
     <string name="action_toggle_emoji_summary">Turns emoji mode on or off</string>
+    <string name="action_toggle_command_mode_title">Toggle command mode</string>
+    <string name="action_toggle_command_mode_summary">Turns command mode on or off. In command mode, dot swipes navigate the text and braille commands select and edit it</string>
     <string name="action_next_edit_action_title">Next edit action</string>
     <string name="action_next_edit_action_summary">Moves to the next edit action such as copy, cut or paste</string>
     <string name="action_perform_edit_action_title">Perform edit action</string>
@@ -538,4 +540,18 @@
     <string name="abbreviation_editor_empty">No abbreviations yet. Use Add abbreviation to create your first one.</string>
     <string name="abbreviation_editor_invalid">Please enter both an abbreviation and an expansion.</string>
     <string name="abbreviation_editor_save_error">There was an error saving the abbreviations.</string>
+    <!-- Command mode -->
+    <string name="command_mode_enabled">Command mode</string>
+    <string name="command_mode_disabled">Command mode off</string>
+    <string name="command_start_selection">Start selection</string>
+    <string name="command_end_selection">End selection</string>
+    <string name="command_no_text_selected">No text selected.</string>
+    <string name="command_selection_deleted">Selection deleted</string>
+    <string name="command_select_all">Select all</string>
+    <string name="command_text_already_selected">The text is already selected.</string>
+    <string name="command_copied">Copy</string>
+    <string name="command_cut">cut</string>
+    <string name="command_pasted">pasted</string>
+    <string name="command_selected_suffix">selected</string>
+    <string name="command_unselected_suffix">unselected</string>
 </resources>

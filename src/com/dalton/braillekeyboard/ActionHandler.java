@@ -191,6 +191,16 @@ public class ActionHandler implements ActionContext {
             return true;
         }
 
+        // In command mode, single-finger dot swipes and touch-holds navigate
+        // and edit the text instead of performing their normal actions, so
+        // they are handed to the command engine. Multi-finger gestures (like
+        // the command mode toggle itself) fall through to their normal
+        // bindings below.
+        if (listener != null && listener.isCommandMode()
+                && !value.isMultiFinger()) {
+            return listener.handleCommandSwipe(value);
+        }
+
         boolean fastDoubleSwipe = fastDoubleSwipe(value, DOUBLE_TOUCH_THRESHOLD);
         KeyboardAction action = value.getBoundAction(context);
         if (action == null || action == KeyboardAction.NONE) {

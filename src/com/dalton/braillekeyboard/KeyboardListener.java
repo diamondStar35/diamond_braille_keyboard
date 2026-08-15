@@ -163,6 +163,41 @@ public interface KeyboardListener {
     boolean isEmojiMode();
 
     /**
+     * Whether the keyboard is currently in command mode.
+     * 
+     * @return true if command mode is active.
+     */
+    boolean isCommandMode();
+
+    /**
+     * Toggle command mode on or off. While command mode is active, dot
+     * swipes navigate the text and certain Braille cells perform editing
+     * commands (selection, copy, cut, paste, ...). See
+     * {@link CommandModeEngine}.
+     */
+    void toggleCommandMode();
+
+    /**
+     * Give the command engine a gesture to interpret.
+     * 
+     * @param swipe The gesture that was performed.
+     * @return true if the gesture was consumed (performed or intentionally
+     *         ignored) by command mode, false if it should be handled
+     *         normally.
+     */
+    boolean handleCommandSwipe(Swipe swipe);
+
+    /**
+     * Select the given range in the underlying IME.
+     * 
+     * @param start The inclusive start of the selection.
+     * @param end The exclusive end of the selection.
+     * @return true on success or false if the input connection is no longer
+     *         valid.
+     */
+    boolean setSelection(int start, int end);
+
+    /**
      * Select the active region in the underlying IME.
      * 
      * @return true if the region could be selected or false if it couldn't be
