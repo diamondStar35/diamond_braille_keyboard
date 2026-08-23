@@ -215,6 +215,15 @@ public class EditingController implements SpellCheckController.TextProvider {
                         deleted.toString(), listener.isPasswordField());
                 return true;
             }
+            if (deleted != null
+                    && SpeechEvent.DELETE_EMPTY.isEnabled(context)) {
+                // The cursor sits at the start of the text (or the field is
+                // empty): restore the "nothing to delete" announcement the
+                // old move-then-delete flow produced here.
+                callback.onText("%s",
+                        context.getString(R.string.nothing_to_delete), false);
+                return true;
+            }
             break;
         case WORD:
             // Fast path: pull a window of text before the cursor once, find
@@ -227,7 +236,14 @@ public class EditingController implements SpellCheckController.TextProvider {
             CharSequence windowText = listener.getTextBeforeCursor(
                     EditingUtilities.MAX_LINE_LENGTH);
             if (windowText == null || windowText.length() == 0) {
-                break;
+                // Nothing before the cursor at all.
+                if (SpeechEvent.DELETE_EMPTY.isEnabled(context)) {
+                    callback.onText("%s",
+                            context.getString(R.string.nothing_to_delete),
+                            false);
+                    return true;
+                }
+                return false;
             }
             String window = windowText.toString();
             int end = window.length();
@@ -243,8 +259,11 @@ public class EditingController implements SpellCheckController.TextProvider {
             }
             int total = end - startOfWord;
             if (total == 0) {
-                callback.onText("%s",
-                        context.getString(R.string.nothing_to_delete), false);
+                if (SpeechEvent.DELETE_EMPTY.isEnabled(context)) {
+                    callback.onText("%s",
+                            context.getString(R.string.nothing_to_delete),
+                            false);
+                }
                 return true;
             }
             String spoken = window.substring(startOfWord, startOfSeparators);
@@ -531,8 +550,11 @@ public class EditingController implements SpellCheckController.TextProvider {
                     return false;
                 }
             } else {
-                callback.onText("%s",
-                        context.getString(R.string.nothing_to_delete), false);
+                if (SpeechEvent.DELETE_EMPTY.isEnabled(context)) {
+                    callback.onText("%s",
+                            context.getString(R.string.nothing_to_delete),
+                            false);
+                }
                 return true;
             }
         }

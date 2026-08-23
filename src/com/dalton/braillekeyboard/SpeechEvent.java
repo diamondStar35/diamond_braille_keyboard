@@ -31,7 +31,15 @@ public enum SpeechEvent {
     MISSPELLING(
             R.string.pref_echo_misspellings_key,
             R.string.pref_echo_misspellings_title,
-            R.string.pref_echo_misspellings_summary, true);
+            R.string.pref_echo_misspellings_summary, true),
+    /**
+     * Announce "nothing to delete" when a deletion finds no text to remove.
+     * When off, these attempts stay silent.
+     */
+    DELETE_EMPTY(
+            R.string.pref_speech_event_delete_empty_key,
+            R.string.pref_speech_event_delete_empty_title,
+            R.string.pref_speech_event_delete_empty_summary, true);
 
     /** The preference key storing whether this announcement is enabled. */
     public final int keyResource;
