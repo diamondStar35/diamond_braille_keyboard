@@ -461,6 +461,11 @@ public class EditingUtilities {
         return matchesSeparator(character, WORD_SEPARATORS);
     }
 
+    /** True when the character separates words (space, newline, tab). */
+    public static boolean isWordSeparatorChar(char character) {
+        return isWordSeparator(character);
+    }
+
     // The text of the line starting at index 'start' of 'before', extended
     // with the characters of 'after' up to the next line break.
     private static String lineText(CharSequence before, int start,

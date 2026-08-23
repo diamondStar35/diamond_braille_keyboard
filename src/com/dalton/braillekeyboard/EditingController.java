@@ -204,24 +204,54 @@ public class EditingController implements SpellCheckController.TextProvider {
         boolean canDelete = true;
         switch (granularity) {
         case CHARACTER:
+            // Fast path: one read for the character being deleted and one
+            // delete call. The generic move-then-delete dance below costs
+            // several binder round-trips per key press.
             listener.finishComposingText();
-            word = EditingUtilities.moveToPreviousCharacter(listener);
-            break;
-        case WORD:
-            listener.finishComposingText();
-            Word space = EditingUtilities.skipSepBackwards(listener,
-                    EditingUtilities.WORD_SEPARATORS);
-            word = EditingUtilities.getWord(listener);
-            if (word != null) {
-                if (space != null) {
-                    word.charsBefore += space.charsBefore;
-                }
-                if (word.word.length() > word.charsBefore) {
-                    word.word = word.word.substring(0, word.charsBefore);
-                }
-                EditingUtilities.moveToPreviousWord(listener);
+            CharSequence deleted = listener.getTextBeforeCursor(1);
+            if (deleted != null && deleted.length() > 0) {
+                listener.deleteSurroundingText(1, 0);
+                callback.onText(context.getString(R.string.deleted),
+                        deleted.toString(), listener.isPasswordField());
+                return true;
             }
             break;
+        case WORD:
+            // Fast path: pull a window of text before the cursor once, find
+            // the preceding separators plus the word before them locally,
+            // then issue a single delete. This replaces a sequence of about
+            // ten round-trips through the editor (cursor pulls, two moves
+            // with their own reads, and the final delete). The announced
+            // word is exactly the letters being removed.
+            listener.finishComposingText();
+            CharSequence windowText = listener.getTextBeforeCursor(
+                    EditingUtilities.MAX_LINE_LENGTH);
+            if (windowText == null || windowText.length() == 0) {
+                break;
+            }
+            String window = windowText.toString();
+            int end = window.length();
+            int startOfSeparators = end;
+            while (startOfSeparators > 0 && EditingUtilities
+                    .isWordSeparatorChar(window.charAt(startOfSeparators - 1))) {
+                --startOfSeparators;
+            }
+            int startOfWord = startOfSeparators;
+            while (startOfWord > 0 && !EditingUtilities.isWordSeparatorChar(
+                    window.charAt(startOfWord - 1))) {
+                --startOfWord;
+            }
+            int total = end - startOfWord;
+            if (total == 0) {
+                callback.onText("%s",
+                        context.getString(R.string.nothing_to_delete), false);
+                return true;
+            }
+            String spoken = window.substring(startOfWord, startOfSeparators);
+            listener.deleteSurroundingText(total, 0);
+            callback.onText(context.getString(R.string.deleted), spoken,
+                    listener.isPasswordField());
+            return true;
         case LINE:
             canDelete = isConfirmed(context, fastDoubleTouch);
             if (canDelete) {

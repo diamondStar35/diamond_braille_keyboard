@@ -59,6 +59,13 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
     private Parser brailleParser;
     private BrailleKeyboardView brailleView = null;
     private final TextComposer textComposer = new TextComposer(this);
+    /**
+     * The single access point to the editor: tracks the cursor through
+     * {@link #onUpdateSelection} and through every write issued via
+     * {@link #getCurrentInputConnection}, saving repeated full-document
+     * round-trips on the editing hot path.
+     */
+    private final EditorGateway editor = new EditorGateway();
     private int cursor = -1;
     private int mark = -1;
     private boolean selectAll = false;
@@ -146,6 +153,9 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
     @Override
     public void onStartInput(EditorInfo info, boolean restarting) {
         super.onStartInput(info, restarting);
+        // The editor state of the previous session says nothing about this
+        // one; tracking resumes from the framework's next selection update.
+        editor.invalidate();
         // remove any existing selection.
         selectAll = false;
         mark = -1;
@@ -159,6 +169,20 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         // prevents duplication bugs in apps that don't handle composing spans
         // correctly (e.g. Chrome address bar, Star Taxi).
         textComposer.setPredictionOn(false);
+    }
+
+    @Override
+    public void onUpdateSelection(int oldSelStart, int oldSelEnd,
+            int newSelStart, int newSelEnd, int candidatesStart,
+            int candidatesEnd) {
+        super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd,
+                candidatesStart, candidatesEnd);
+        editor.onSelectionChanged(newSelStart, newSelEnd);
+    }
+
+    @Override
+    public InputConnection getCurrentInputConnection() {
+        return editor.track(super.getCurrentInputConnection());
     }
 
     @Override
@@ -451,6 +475,18 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
 
     @Override
     public int getCursor() {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null) {
+            cursor = -1;
+            return cursor;
+        }
+        // Prefer the tracked position (no round-trip); fall back to pulling
+        // the document only while tracking has not caught up.
+        int tracked = editor.getCursor(ic);
+        if (tracked != EditorGateway.UNKNOWN) {
+            cursor = tracked;
+            return cursor;
+        }
         ExtractedText extractedText = getAllText();
         if (extractedText != null) {
             if (extractedText.startOffset + extractedText.selectionStart == extractedText.startOffset

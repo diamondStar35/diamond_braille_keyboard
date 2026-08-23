@@ -102,16 +102,25 @@ public class SpellCheckController {
         SpellingSuggestionsReadyListener spellingListener = new SpellingSuggestionsReadyListener() {
 
             @Override
-            public void suggestionsReady(Suggestion result) {
+            public void suggestionsReady(final Suggestion result) {
                 spellingSuggestion = result;
-                if (result != null
-                        || spellingDirection == SpellChecker.Direction.UNDER_CURSOR) {
-                    handleSpellingSuggestion(context);
-                } else {
-                    callback.onText("%s",
-                            context.getString(R.string.no_more_misspellings),
-                            false);
-                }
+                // The spell checker delivers its results on its own binder
+                // thread; editor mutations and announcements must run on the
+                // main thread.
+                mainHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (result != null
+                                || spellingDirection == SpellChecker.Direction.UNDER_CURSOR) {
+                            handleSpellingSuggestion(context);
+                        } else {
+                            callback.onText("%s",
+                                    context.getString(
+                                            R.string.no_more_misspellings),
+                                    false);
+                        }
+                    }
+                });
             }
         };
 
@@ -145,13 +154,21 @@ public class SpellCheckController {
             final int offset) {
         if (!spellChecker.checkWord(new SpellingSuggestionsReadyListener() {
             @Override
-            public void suggestionsReady(Suggestion result) {
-                spellingSuggestion = result;
-                if (result != null) {
-                    spellingDirection = SpellChecker.Direction.UNDER_CURSOR;
-                    directionThroughSuggestionList = 0;
-                    handleSpellingSuggestion(context);
-                }
+            public void suggestionsReady(final Suggestion result) {
+                // Results arrive on a binder thread; hop to the main thread
+                // before touching the editor or speaking.
+                mainHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        spellingSuggestion = result;
+                        if (result != null) {
+                            spellingDirection =
+                                    SpellChecker.Direction.UNDER_CURSOR;
+                            directionThroughSuggestionList = 0;
+                            handleSpellingSuggestion(context);
+                        }
+                    }
+                });
             }
         }, word, offset)) {
             // No spell checker is available; nothing to do.
@@ -221,16 +238,10 @@ public class SpellCheckController {
         }
 
         if (misspellingAnnounced) {
-            // The spell checker can deliver its results on a background
-            // thread; emit the haptic on the main thread, after the
-            // announcement, so it can never delay or drop the speech above.
-            final OnActionListener cb = callback;
-            mainHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    cb.onNotify(FeedbackEvent.MISSPELLING);
-                }
-            });
+            // Always running on the main thread (the suggestionsReady hooks
+            // hop here from the spell checker's binder thread), so the
+            // haptic can be emitted straight away.
+            callback.onNotify(FeedbackEvent.MISSPELLING);
         }
     }
 
