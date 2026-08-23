@@ -23,7 +23,6 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Paint.FontMetrics;
 import android.graphics.Paint.Style;
-import android.graphics.Rect;
 import androidx.core.content.ContextCompat;
 import android.util.TypedValue;
 
@@ -37,7 +36,12 @@ final class DotRenderer {
 
     private final Paint paint = new Paint();
     private final Paint circlePaint = new Paint();
-    private final Rect circleTextBounds = new Rect();
+
+    // The dot labels are always the digits 1..8; precomputed so drawing a
+    // frame does not allocate a String per dot.
+    private static final String[] DOT_LABELS =
+            { "1", "2", "3", "4", "5", "6", "7", "8" };
+
     private DisplayParams params;
 
     /** Display metrics and orientation flags for the current view size. */
@@ -130,8 +134,8 @@ final class DotRenderer {
                     key.x, key.y);
             int y = TouchMapper.mapY(autoRotate, viewWidth, viewHeight,
                     key.x, key.y);
-            String text = String.valueOf(i + 1);
-            paint.getTextBounds(text, 0, text.length(), circleTextBounds);
+            String text = i < DOT_LABELS.length ? DOT_LABELS[i]
+                    : String.valueOf(i + 1);
             canvas.drawCircle(x, y, params.radius, circlePaint);
             canvas.drawText(text, x, y, paint);
         }

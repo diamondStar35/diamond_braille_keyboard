@@ -298,31 +298,33 @@ public abstract class Pad {
     }
 
     protected Swipe getGenericSwipeAction(Coords[] coords, boolean swap) {
-        final int REQUIRED_BITS = 3;
-        StringBuilder sb = new StringBuilder();
+        // Pack every finger's 3-bit direction into one integer, highest
+        // finger index in the most significant bits - the same layout the
+        // old zero-padded binary string produced, without the string
+        // building and parsing per gesture.
+        int packed = 0;
         for (int i = coords.length - 1; i >= 0; i--) {
-            String bitString = "";
+            int direction;
             if (coords[i] != null) {
                 // When the gestures are inverted (see
                 // {@link Coords#swipeDirection(int, int, boolean, boolean)})
-                // the raw direction is rotated 180 degrees so the bit string
-                // keeps describing the physical swipe on the keyboard as the
-                // user experiences it.
-                byte direction = coords[i].swipeDirection(swipeThreshold,
-                        swipeThreshold, swap, gestureInvert);
-                bitString = Integer.toBinaryString(direction);
+                // the raw direction is rotated 180 degrees so the packed
+                // bits keep describing the physical swipe on the keyboard
+                // as the user experiences it.
+                direction = coords[i].swipeDirection(swipeThreshold,
+                        swipeThreshold, swap, gestureInvert) & 7;
+            } else {
+                direction = 0;
             }
-            // zero padding
-            for (int j = 0; j < REQUIRED_BITS - bitString.length(); j++) {
-                sb.append("0");
-            }
-            sb.append(bitString);
+            packed = (packed << 3) | direction;
         }
 
-        for (int i = 0; i < sb.length(); i += 3) {
-            if (!sb.substring(i, i + 3).equals("000")
-                    && !sb.substring(i, i + 3).equals("111")) {
-                return Swipe.valueOf(Integer.parseInt(sb.toString(), 2));
+        // The first finger (highest index) whose direction is neither
+        // untouched (000, no contact) nor DOT_NONE (111) decides the swipe.
+        for (int pos = coords.length - 1; pos >= 0; pos--) {
+            int triplet = (packed >> (3 * pos)) & 7;
+            if (triplet != 0 && triplet != 7) {
+                return Swipe.valueOf(triplet);
             }
         }
         return Swipe.NONE;

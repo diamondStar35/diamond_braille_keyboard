@@ -230,13 +230,23 @@ public enum Swipe {
         return "GESTURE_" + name();
     }
 
+    /** Every action by name, so binding lookups avoid an array scan. */
+    private static final java.util.HashMap<String, KeyboardAction>
+            ACTIONS_BY_NAME = new java.util.HashMap<String, KeyboardAction>();
+    static {
+        for (KeyboardAction action : KeyboardAction.values()) {
+            ACTIONS_BY_NAME.put(action.name(), action);
+        }
+    }
+
     /** The action currently bound to this gesture. */
     public KeyboardAction getBoundAction(Context context) {
         SharedPreferences prefs = Options.getSharedPreferences(context);
         String stored = prefs.getString(getPreferenceKey(), null);
-        for (KeyboardAction action : KeyboardAction.values()) {
-            if (action.name().equals(stored)) {
-                return action;
+        if (stored != null) {
+            KeyboardAction bound = ACTIONS_BY_NAME.get(stored);
+            if (bound != null) {
+                return bound;
             }
         }
         return defaultAction;

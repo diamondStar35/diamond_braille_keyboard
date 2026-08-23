@@ -18,6 +18,13 @@ public class EmojiEngine {
     private List<List<String>> categories = new ArrayList<>();
     private List<String> favorites = new ArrayList<>();
 
+    // The emoji assets are loaded on a background thread so constructing the
+    // engine (at service start) does not block the main thread on a dozen
+    // file reads. Everything that touches the lists awaits this latch first;
+    // happens-before through the latch makes the filled lists safely visible.
+    private final java.util.concurrent.CountDownLatch loaded =
+            new java.util.concurrent.CountDownLatch(1);
+
     private int currentCategory = 0; // 0-11 for predefined, 12 for favorites
     private int currentRow = 0; // 0-15
     private int currentEmoji = -1; // 0-9
@@ -105,8 +112,29 @@ public class EmojiEngine {
         this.listener = listener;
         this.prefs = context.getSharedPreferences("EmojiFavorites", Context.MODE_PRIVATE);
         this.speech = speech;
-        loadEmojis();
-        loadFavorites();
+        Thread loader = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                loadEmojis();
+                loadFavorites();
+                loaded.countDown();
+            }
+        }, "emoji-preload");
+        loader.setPriority(Thread.MIN_PRIORITY);
+        loader.start();
+    }
+
+    /** Blocks until the background asset load finished. */
+    private void awaitLoaded() {
+        while (true) {
+            try {
+                loaded.await();
+                return;
+            } catch (InterruptedException e) {
+                // Keep waiting; the load itself never blocks.
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     private void loadEmojis() {
@@ -158,6 +186,7 @@ public class EmojiEngine {
     }
 
     public void handleInput(byte dots) {
+        awaitLoaded();
         // Navigation shortcuts
         if (dots == 4) { // Prev emoji (dot 3)
             moveEmoji(-1);

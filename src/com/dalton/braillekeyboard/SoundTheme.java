@@ -83,11 +83,21 @@ public class SoundTheme {
         return sounds.get(event);
     }
 
+    /** Themes shipped in the assets, parsed once per process. */
+    private static volatile List<SoundTheme> themeCache;
+
     /**
      * All themes shipped in the assets, in no particular order. Themes whose
      * config.ini cannot be read are skipped.
      */
     public static List<SoundTheme> listThemes(Context context) {
+        // Themes ship inside the APK and cannot change at runtime, so the
+        // parsed list is cached for the process; this used to re-open and
+        // parse every config.ini on each keyboard open.
+        List<SoundTheme> cached = themeCache;
+        if (cached != null) {
+            return cached;
+        }
         List<SoundTheme> themes = new ArrayList<>();
         AssetManager assets = context.getAssets();
         try {
@@ -104,6 +114,7 @@ public class SoundTheme {
         } catch (IOException e) {
             Log.e(TAG, "Failed to list sound themes", e);
         }
+        themeCache = themes;
         return themes;
     }
 

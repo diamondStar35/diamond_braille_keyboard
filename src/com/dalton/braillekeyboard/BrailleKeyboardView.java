@@ -107,6 +107,10 @@ public class BrailleKeyboardView extends android.view.View
     private ActionHandler actionHandler;
     private KeyboardListener listener;
     private boolean shrinkKeyboard;
+    // Last state applied to the view, so repeated draws do not churn
+    // background drawables or accessibility properties per frame.
+    private boolean appliedPrivacy;
+    private CharSequence appliedContentDescription;
 
     public BrailleKeyboardView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -206,10 +210,10 @@ public class BrailleKeyboardView extends android.view.View
             // We should show a visual representation of the view according to
             // user preference.
             if (needsTalkBackWarning()) {
-                setContentDescription(getContext().getString(
+                applyContentDescription(getContext().getString(
                         getTalkBackWarningMessage()));
             } else {
-                setContentDescription(null);
+                applyContentDescription(null);
             }
 
             renderer.drawDots(canvas, padController.getKeys(),
@@ -222,9 +226,21 @@ public class BrailleKeyboardView extends android.view.View
                         .getString(R.string.expand_keyboard_talkback);
             }
             renderer.drawShrunkLabel(canvas, text);
-            setContentDescription(text);
+            applyContentDescription(text);
         }
         setPrivacy();
+    }
+
+    /** Sets the accessibility description only when it actually changed. */
+    private void applyContentDescription(CharSequence description) {
+        boolean same = description == null
+                ? appliedContentDescription == null || appliedContentDescription
+                        .length() == 0
+                : description.equals(appliedContentDescription);
+        if (!same) {
+            appliedContentDescription = description;
+            setContentDescription(description);
+        }
     }
 
     @Override
@@ -495,19 +511,18 @@ public class BrailleKeyboardView extends android.view.View
     }
 
     private boolean setPrivacy() {
-        if (Options.getBooleanPreference(
+        boolean privacy = Options.getBooleanPreference(
                 getContext(),
                 R.string.pref_privacy_key,
                 Boolean.parseBoolean(getContext().getString(
-                        R.string.pref_privacy_default)))) {
+                        R.string.pref_privacy_default)));
+        if (privacy != appliedPrivacy) {
+            appliedPrivacy = privacy;
             setBackgroundColor(ContextCompat.getColor(getContext(),
-                    android.R.color.black));
-            return true;
-        } else {
-            setBackgroundColor(ContextCompat.getColor(getContext(),
-                    android.R.color.transparent));
-            return false;
+                    privacy ? android.R.color.black
+                            : android.R.color.transparent));
         }
+        return privacy;
     }
 
     // PadController.Listener ---------------------------------------------
