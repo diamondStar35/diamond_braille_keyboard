@@ -136,9 +136,20 @@ public class Parser {
         return BrailleType.valueOf(value);
     }
 
+    // Memoisation of getTable(Context). Resolving the active table sorts the
+    // whole catalogue and rebuilds the configured-id set, which used to run
+    // on every typed cell. The cache is self-invalidating: the three cheap
+    // in-memory inputs are re-read each call and compared, so any change -
+    // from the settings screen or from the table-switching gestures below -
+    // simply misses and recomputes once.
+    private BrailleType cachedTableBrailleType;
+    private Set<String> cachedTableConfigured;
+    private String cachedTableActiveId;
+    private TableInfo cachedTable;
+
     /**
      * Get the active Braille table.
-     * 
+     *
      * @param context
      *            The application context.
      * @return The active Braille table as determined by the application
@@ -153,6 +164,26 @@ public class Parser {
         String activeId = sharedPref.getString(
                 context.getString(R.string.pref_braille_active_table_key),
                 context.getString(R.string.pref_braille_table_auto));
+
+        if (cachedTable != null
+                && cachedTableBrailleType == brailleType
+                && cachedTableActiveId.equals(activeId)
+                && cachedTableConfigured.equals(configured)) {
+            return cachedTable;
+        }
+
+        TableInfo result = resolveTable(context, brailleType, configured,
+                activeId);
+        cachedTableBrailleType = brailleType;
+        cachedTableConfigured = configured;
+        cachedTableActiveId = activeId;
+        cachedTable = result;
+        return result;
+    }
+
+    /** The uncached resolution logic behind {@link #getTable(Context)}. */
+    private TableInfo resolveTable(Context context, BrailleType brailleType,
+            Set<String> configured, String activeId) {
         if (!context.getString(R.string.pref_braille_table_auto)
                 .equals(activeId)) {
             TableInfo active = findTableById(activeId);

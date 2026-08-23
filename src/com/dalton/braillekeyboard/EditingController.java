@@ -352,7 +352,7 @@ public class EditingController implements SpellCheckController.TextProvider {
         // space. The expansion is announced so the user hears what was
         // inserted instead of the abbreviation that disappeared.
         if (code == ' ' && message != null && message.length() > 0) {
-            String expansion = new AbbreviationStorage(context)
+            String expansion = AbbreviationStorage.getInstance(context)
                     .findExpansion(message);
             if (expansion != null) {
                 listener.deleteSurroundingText(message.length(), 0);

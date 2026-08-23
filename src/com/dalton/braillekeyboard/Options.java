@@ -17,6 +17,7 @@
 package com.dalton.braillekeyboard;
 
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -27,6 +28,48 @@ public class Options {
     private static boolean migrationAttempted = false;
     // Only migrate the legacy string table preferences once per process.
     private static boolean tableMigrationAttempted = false;
+
+    // ---- Hot preference cache ------------------------------------------
+    //
+    // Last-read values keyed by the resolved preference key name.
+    // SharedPreferences are already in-memory, so this cache exists to skip
+    // the work wrapped around every read from hot paths - the
+    // device-protected context allocation and the key-resource string
+    // resolution - which used to run per keystroke, gesture and frame.
+    //
+    // Any change to any preference clears the whole map, so semantics are
+    // identical to reading straight through: settings apply immediately,
+    // exactly as before the cache existed.
+    private static final ConcurrentHashMap<String, Object> hotValues =
+            new ConcurrentHashMap<String, Object>();
+    private static final Object[] hotListenerLock = new Object[0];
+    private static SharedPreferences.OnSharedPreferenceChangeListener
+            hotListener;
+
+    private static void registerHotListener(SharedPreferences prefs) {
+        if (hotListener != null) {
+            return;
+        }
+        synchronized (hotListenerLock) {
+            if (hotListener != null) {
+                return;
+            }
+            SharedPreferences.OnSharedPreferenceChangeListener listener =
+                    new SharedPreferences.OnSharedPreferenceChangeListener() {
+                @Override
+                public void onSharedPreferenceChanged(
+                        SharedPreferences sharedPreferences, String key) {
+                    // Writes are rare; dropping everything is simpler and
+                    // just as correct as tracking the single changed key.
+                    hotValues.clear();
+                }
+            };
+            // The registry keeps only a weak reference to the listener, so
+            // hold a strong one for the life of the process.
+            prefs.registerOnSharedPreferenceChangeListener(listener);
+            hotListener = listener;
+        }
+    }
 
     /**
      * Get the SharedPreferences for this app. On Android 7.0+ the preferences
@@ -56,6 +99,7 @@ public class Options {
         SharedPreferences prefs = PreferenceManager
                 .getDefaultSharedPreferences(deviceContext);
         migrateLegacyTablePreferences(context, prefs);
+        registerHotListener(prefs);
         return prefs;
     }
 
@@ -202,14 +246,28 @@ public class Options {
 
     public static boolean getBooleanPreference(Context context, int resource,
             boolean defaultValue) {
-        SharedPreferences sharedPref = getSharedPreferences(context);
-        return sharedPref.getBoolean(context.getString(resource), defaultValue);
+        String key = context.getString(resource);
+        Object cached = hotValues.get(key);
+        if (cached instanceof Boolean) {
+            return (Boolean) cached;
+        }
+        boolean value = getSharedPreferences(context).getBoolean(key,
+                defaultValue);
+        hotValues.put(key, value);
+        return value;
     }
 
     public static String getStringPreference(Context context, int resource,
             String defaultValue) {
-        SharedPreferences sharedPref = getSharedPreferences(context);
-        return sharedPref.getString(context.getString(resource), defaultValue);
+        String key = context.getString(resource);
+        Object cached = hotValues.get(key);
+        if (cached instanceof String) {
+            return (String) cached;
+        }
+        String value = getSharedPreferences(context).getString(key,
+                defaultValue);
+        hotValues.put(key, value);
+        return value;
     }
 
     public static boolean switchBooleanPreference(Context context,

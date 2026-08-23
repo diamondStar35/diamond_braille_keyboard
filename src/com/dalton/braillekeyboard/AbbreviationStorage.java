@@ -62,6 +62,27 @@ public class AbbreviationStorage {
 
     private final File file;
 
+    // The keyboard looks up abbreviations on every space press; handing it a
+    // shared instance avoids re-resolving the device-protected files
+    // directory (a context allocation) per keystroke. The data itself is
+    // already process-cached above.
+    private static volatile AbbreviationStorage shared;
+
+    /** The shared instance for lookups while typing. */
+    public static AbbreviationStorage getInstance(Context context) {
+        AbbreviationStorage result = shared;
+        if (result == null) {
+            synchronized (AbbreviationStorage.class) {
+                result = shared;
+                if (result == null) {
+                    result = new AbbreviationStorage(context);
+                    shared = result;
+                }
+            }
+        }
+        return result;
+    }
+
     public AbbreviationStorage(Context context) {
         file = new File(context.createDeviceProtectedStorageContext()
                 .getFilesDir(), FILE_NAME);
