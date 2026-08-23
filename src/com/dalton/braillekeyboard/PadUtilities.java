@@ -69,6 +69,13 @@ public class PadUtilities {
         boolean invert = Options.getBooleanPreference(context,
                 R.string.pref_keyboard_invert_key, Boolean.parseBoolean(context
                         .getString(R.string.pref_keyboard_invert_default)));
+        // Swipe directions follow the keyboard inversion XOR the independent
+        // "Invert gestures" setting, so gestures can be flipped without
+        // flipping the dot layout (and vice versa).
+        boolean gestureInvert = invert ^ Options.getBooleanPreference(context,
+                R.string.pref_invert_gestures_key,
+                Boolean.parseBoolean(context
+                        .getString(R.string.pref_invert_gestures_default)));
         KeyboardType keyboard = KeyboardType
                 .valueOf(Integer.parseInt(Options.getStringPreference(
                         context,
@@ -101,18 +108,18 @@ public class PadUtilities {
             int expectedOneSide = useEightDots ? 4 : 3;
             if (leftCount == expectedOneSide && rightCount == expectedOneSide) {
                 pad = new VerticalPad(context, coords, width, height, portrait,
-                        invert, useEightDots);
+                        invert, gestureInvert, useEightDots);
             } else {
                 pad = new HorizontalPad(context, coords, width, height,
-                        portrait, invert, useEightDots);
+                        portrait, invert, gestureInvert, useEightDots);
             }
         } else {
             if (keyboard == KeyboardType.HORIZONTAL) {
                 pad = new HorizontalPad(context, coords, width, height,
-                        portrait, invert, useEightDots);
+                        portrait, invert, gestureInvert, useEightDots);
             } else {
                 pad = new VerticalPad(context, coords, width, height, portrait,
-                        invert, useEightDots);
+                        invert, gestureInvert, useEightDots);
             }
         }
 
@@ -244,6 +251,10 @@ public class PadUtilities {
         boolean invert = Options.getBooleanPreference(context,
                 R.string.pref_keyboard_invert_key, Boolean.parseBoolean(context
                         .getString(R.string.pref_keyboard_invert_default)));
+        boolean gestureInvert = invert ^ Options.getBooleanPreference(context,
+                R.string.pref_invert_gestures_key,
+                Boolean.parseBoolean(context
+                        .getString(R.string.pref_invert_gestures_default)));
         KeyboardType keyboard = KeyboardType
                 .valueOf(Integer.parseInt(Options.getStringPreference(
                         context,
@@ -266,20 +277,20 @@ public class PadUtilities {
             int prefKey = HorizontalPad.getPrefKey(portrait, invert);
             if ((coords = Pad.load(context, width, height, prefKey, portrait)) != null) {
                 pad = new HorizontalPad(context, coords, width, height,
-                        portrait, invert, useEightDots);
+                        portrait, invert, gestureInvert, useEightDots);
             } else {
                 pad = HorizontalPad.displayDefaultPad(context, width, height,
-                        portrait, invert, useEightDots);
+                        portrait, invert, gestureInvert, useEightDots);
             }
         } else {
             Coords[] coords = null;
             int prefKey = VerticalPad.getPrefKey(portrait, invert);
             if ((coords = Pad.load(context, width, height, prefKey, portrait)) != null) {
                 pad = new VerticalPad(context, coords, width, height, portrait,
-                        invert, useEightDots);
+                        invert, gestureInvert, useEightDots);
             } else {
                 pad = VerticalPad.displayDefaultPad(context, width, height,
-                        portrait, invert, useEightDots);
+                        portrait, invert, gestureInvert, useEightDots);
             }
         }
 

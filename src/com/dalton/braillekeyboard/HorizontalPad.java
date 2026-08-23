@@ -37,8 +37,10 @@ public class HorizontalPad extends Pad {
     private static final int MAX_HORIZONTAL_DISTANCE = 80; // 2/3 inch;
 
     public HorizontalPad(Context context, Coords[] coords, int width,
-            int height, boolean portrait, boolean invert, boolean useEightDots) {
-        super(context, coords, width, height, R.string.pad_horizontal, invert);
+            int height, boolean portrait, boolean invert,
+            boolean gestureInvert, boolean useEightDots) {
+        super(context, coords, width, height, R.string.pad_horizontal, invert,
+                gestureInvert);
         save(context, getPrefKey(portrait, invert), portrait);
         sortKeys(keys, useEightDots);
     }
@@ -56,7 +58,8 @@ public class HorizontalPad extends Pad {
     }
 
     public static Pad displayDefaultPad(Context context, int width, int height,
-            boolean portrait, boolean invert, boolean useEightDots) {
+            boolean portrait, boolean invert, boolean gestureInvert,
+            boolean useEightDots) {
         int offsetWidth = Math.min(width / 8, (int) TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP, MAX_HORIZONTAL_DISTANCE, context
                         .getResources().getDisplayMetrics()));
@@ -74,7 +77,7 @@ public class HorizontalPad extends Pad {
             x -= offsetWidth;
         }
         return new HorizontalPad(context, coords, width, height, portrait,
-                invert, useEightDots);
+                invert, gestureInvert, useEightDots);
     }
 
     private void insertSpecialDots() {

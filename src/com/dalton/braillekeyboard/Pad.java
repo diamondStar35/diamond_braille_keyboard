@@ -73,17 +73,26 @@ public abstract class Pad {
 
     protected final boolean invert;
 
+    /**
+     * Whether swipe directions are inverted, independently of the layout:
+     * the keyboard inversion XOR the "Invert gestures" setting. The layout
+     * mirroring ({@link #invert}) and the gesture directions can therefore
+     * be flipped separately.
+     */
+    protected final boolean gestureInvert;
+
     // The drift measured for each dot from the finger positions matched to
     // it while typing, consumed by updateKeys() when the dot positions are
     // not locked.
     private final Coords.XY[] differences = new Coords.XY[MAX_DOTS];
 
     public Pad(Context context, Coords[] coords, int width, int height,
-            int padString, boolean invert) {
+            int padString, boolean invert, boolean gestureInvert) {
         SWIPE_MARGINE = Integer.parseInt(Options.getStringPreference(context,
                 R.string.pref_swipe_sensitivity_key,
                 context.getString(R.string.default_swipe_sensitivity)));
         this.invert = invert;
+        this.gestureInvert = gestureInvert;
         this.padString = padString;
         viewHeight = height;
         viewWidth = width;
@@ -244,11 +253,12 @@ public abstract class Pad {
             if (coords[i] != null) {
                 // The direction is already described in the physical direction
                 // of the user, so each finger is counted by the way it is
-                // swiped. When the keyboard is inverted the directions are
-                // rotated 180 degrees so the swipes keep matching the
-                // physical movements on the flipped keyboard.
+                // swiped. When the gestures are inverted (the keyboard is
+                // inverted, or the "Invert gestures" setting says so) the
+                // directions are rotated 180 degrees so the swipes keep
+                // matching the physical movements on the flipped keyboard.
                 byte dir = coords[i].swipeDirection(swipeThreshold,
-                        swipeThreshold, swap, invert);
+                        swipeThreshold, swap, gestureInvert);
                 if (dir == Coords.DOT_DOWN) {
                     fingersDown++;
                 } else if (dir == Coords.DOT_LEFT) {
@@ -293,12 +303,13 @@ public abstract class Pad {
         for (int i = coords.length - 1; i >= 0; i--) {
             String bitString = "";
             if (coords[i] != null) {
-                // When the keyboard is inverted the raw direction is rotated
-                // 180 degrees (see {@link Coords#swipeDirection(int, int,
-                // boolean, boolean)}) so the bit string keeps describing the
-                // physical swipe on the flipped keyboard.
+                // When the gestures are inverted (see
+                // {@link Coords#swipeDirection(int, int, boolean, boolean)})
+                // the raw direction is rotated 180 degrees so the bit string
+                // keeps describing the physical swipe on the keyboard as the
+                // user experiences it.
                 byte direction = coords[i].swipeDirection(swipeThreshold,
-                        swipeThreshold, swap, invert);
+                        swipeThreshold, swap, gestureInvert);
                 bitString = Integer.toBinaryString(direction);
             }
             // zero padding
@@ -329,7 +340,8 @@ public abstract class Pad {
      */
     public String getSwipeDiagnostics(Coords[] coords, boolean swap) {
         StringBuilder sb = new StringBuilder();
-        sb.append("swap=").append(swap).append(",invert=").append(invert);
+        sb.append("swap=").append(swap).append(",invert=").append(invert)
+                .append(",gestureInvert=").append(gestureInvert);
         sb.append(",fingers=[");
         boolean first = true;
         for (int i = coords.length - 1; i >= 0; i--) {
@@ -341,7 +353,7 @@ public abstract class Pad {
                 byte raw = coords[i].swipeDirection(swipeThreshold,
                         swipeThreshold, swap, false);
                 byte direction = coords[i].swipeDirection(swipeThreshold,
-                        swipeThreshold, swap, invert);
+                        swipeThreshold, swap, gestureInvert);
                 sb.append("id").append(coords[i].id)
                         .append(":raw=").append(directionName(raw))
                         .append(",dir=").append(directionName(direction));

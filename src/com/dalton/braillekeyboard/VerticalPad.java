@@ -38,8 +38,10 @@ public class VerticalPad extends Pad {
     private static final int MAX_VERTICAL_DISTANCE = 80; // 0.5 inch
 
     public VerticalPad(Context context, Coords[] coords, int width, int height,
-            boolean portrait, boolean invert, boolean useEightDots) {
-        super(context, coords, width, height, R.string.pad_vertical, invert);
+            boolean portrait, boolean invert, boolean gestureInvert,
+            boolean useEightDots) {
+        super(context, coords, width, height, R.string.pad_vertical, invert,
+                gestureInvert);
         int prefKey = getPrefKey(portrait, invert);
         save(context, prefKey, portrait);
         sortKeys(keys, portrait);
@@ -61,7 +63,8 @@ public class VerticalPad extends Pad {
     }
 
     public static Pad displayDefaultPad(Context context, int width, int height,
-            boolean portrait, boolean invert, boolean useEightDots) {
+            boolean portrait, boolean invert, boolean gestureInvert,
+            boolean useEightDots) {
         int centreWidth = width / 2;
         int offsetWidth = Math.min(width / 5, (int) TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP, MAX_HORIZONTAL_DISTANCE, context
@@ -87,7 +90,7 @@ public class VerticalPad extends Pad {
             y += offsetHeight;
         }
         return new VerticalPad(context, coords, width, height, portrait,
-                invert, useEightDots);
+                invert, gestureInvert, useEightDots);
     }
 
     // Assign the six finger positions to the dots.  There are exactly three
