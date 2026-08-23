@@ -65,7 +65,7 @@ import com.dalton.braillekeyboard.Swipe;
  * You should always call close() when you are done with the View to release
  * resources.
  */
-public class View extends android.view.View implements PadController.Listener {
+public class BrailleKeyboardView extends android.view.View implements PadController.Listener {
     private final AccessibilityManager accessibilityManager;
     private final Paint circlePaint;
     private final Paint paint;
@@ -113,7 +113,7 @@ public class View extends android.view.View implements PadController.Listener {
             shrinkKeyboard = true;
             invalidate();
             requestLayout();
-            listener.updateFullscreenMode();
+            listener.onShrinkStateChanged();
         }
 
         @Override
@@ -134,7 +134,7 @@ public class View extends android.view.View implements PadController.Listener {
     private Speech speech;
     private final Vibrator vibrator;
 
-    public View(Context context, AttributeSet attrs) {
+    public BrailleKeyboardView(Context context, AttributeSet attrs) {
         super(context, attrs);
         paint = new Paint();
         circlePaint = new Paint();
@@ -161,7 +161,7 @@ public class View extends android.view.View implements PadController.Listener {
 
             @Override
             public void ttsReady() {
-                setLocale(View.this.listener.getLocale());
+                setLocale(BrailleKeyboardView.this.listener.getLocale());
                 if (SpeechEvent.KEYBOARD_SHOWN.isEnabled(getContext())) {
                     speech.speak(getContext(),
                             getContext().getString(R.string.ready),
@@ -505,7 +505,7 @@ public class View extends android.view.View implements PadController.Listener {
         setLocale(listener.getLocale());
         invalidate();
         requestLayout();
-        listener.updateFullscreenMode();
+        listener.onShrinkStateChanged();
     }
 
     private void handleTypedCharacter() {

@@ -272,11 +272,12 @@ public interface KeyboardListener {
     boolean selectAll();
 
     /**
-     * Re-evaluate whether the input method should be running in fullscreen
-     * mode, and update its UI if this has changed since the last time it was
-     * called.
+     * Called right after the keyboard view switched between its shrunken and
+     * expanded layouts (the shrink and expand gestures). The implementation
+     * should update the IME window size accordingly and move the keyboard
+     * view between the full-screen overlay and the IME window's input frame.
      */
-    void updateFullscreenMode();
+    void onShrinkStateChanged();
 
     /**
      * Write a string of text straight into the underlying input field.

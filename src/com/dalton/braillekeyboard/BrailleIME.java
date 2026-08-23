@@ -28,9 +28,8 @@ import androidx.core.content.ContextCompat;
 import android.text.InputType;
 import android.view.KeyEvent;
 import android.view.ViewGroup;
-import android.view.ViewParent;
+import android.view.Window;
 import android.view.inputmethod.EditorInfo;
-import android.widget.FrameLayout;
 import android.view.inputmethod.ExtractedText;
 import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.InputConnection;
@@ -58,21 +57,11 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
     private CommandModeEngine commandModeEngine;
 
     private Parser brailleParser;
-    private View brailleView = null;
+    private BrailleKeyboardView brailleView = null;
     private final TextComposer textComposer = new TextComposer(this);
     private int cursor = -1;
     private int mark = -1;
     private boolean selectAll = false;
-    // True from an explicit close until the keyboard is genuinely shown
-    // again. The framework keeps calling lifecycle hooks (including
-    // updateFullscreenMode()) while it processes the hide, and without this
-    // latch those calls resurrected the full-screen overlay over a hidden
-    // keyboard, leaving the whole screen stuck behind it.
-    private boolean overlaySuppressed = false;
-    // Shrink state as of the last placement, so that only real shrink/expand
-    // changes re-run placement instead of every internal framework poke.
-    private boolean placedShrinkState = false;
-    private boolean placedOnce = false;
 
     // TextComposer.Host --------------------------------------------------
     // getCurrentInputConnection() and getCurrentInputEditorInfo() are
@@ -122,13 +111,13 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
 
     @Override
     // Fully qualified: the app's own keyboard view class is also called View
-    // (com.dalton.braillekeyboard.View), which shadows android.view.View here.
+    // in other projects; here it is BrailleKeyboardView, so no shadowing.
     public android.view.View onCreateInputView() {
         super.onCreateInputView();
         // If a previous keyboard view is still hosted in the full-screen
         // overlay, drop that stale window before creating the new view.
-        AccessibilityService.removeKeyboardOverlay();
-        brailleView = (View) getLayoutInflater().inflate(
+        KeyboardOverlayHost.removeOverlay();
+        brailleView = (BrailleKeyboardView) getLayoutInflater().inflate(
                 R.layout.keyboard, null);
 
         if (!Options.getBooleanPreference(this,
@@ -200,38 +189,57 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         // Full-screen mode hosts the keyboard in a topmost accessibility
         // overlay covering the whole screen (system bars included), so a
         // notification cannot close it while typing. Otherwise make sure the
-        // keyboard lives in the IME window's input frame. Both are no-ops
-        // when the keyboard is already in the right place, so frequent input
-        // restarts (common in browsers) cannot close and reopen it.
+        // keyboard lives in the IME window's input frame. Placement is
+        // idempotent and only runs on genuine shows (never on mere input
+        // restarts, which browsers trigger constantly).
         if (!restarting) {
-            // A fresh field means the user opened the keyboard again; an
-            // earlier explicit close no longer applies.
-            overlaySuppressed = false;
+            applyPlacement();
         }
-        updateKeyboardPlacement();
     }
 
     /**
-     * Puts the keyboard view back into the IME window's input frame when it
-     * is not hosted by the full-screen overlay (e.g. after the overlay was
-     * removed because the setting was turned off).
+     * Puts the keyboard view in the window its configuration calls for: the
+     * topmost accessibility overlay when Full-screen mode is on (the IME
+     * window keeps running underneath it), otherwise the IME window's own
+     * input frame.
+     *
+     * <p>Only explicit events may call this - a genuine show, a shrink or
+     * expand gesture, or opening the keyboard. InputMethodService's internal
+     * lifecycle hooks must never reach placement, otherwise they could
+     * resurrect the overlay while the framework is processing a close.
      */
-    private void restoreViewToInputFrame() {
-        if (brailleView == null || brailleView.isAttachedToWindow()) {
+    private void applyPlacement() {
+        if (brailleView == null) {
             return;
         }
-        ViewParent parent = brailleView.getParent();
-        if (parent instanceof ViewGroup) {
-            ((ViewGroup) parent).removeView(brailleView);
+        boolean wasOverlay = KeyboardOverlayHost.isInOverlay(brailleView);
+        if (isFullscreenPreferred()) {
+            if (!KeyboardOverlayHost.showOverlay(brailleView)) {
+                // The accessibility service cannot host windows right now;
+                // keep the keyboard usable inside the IME window.
+                KeyboardOverlayHost.attachToInputFrame(brailleView,
+                        imeInputFrame());
+            }
+        } else {
+            KeyboardOverlayHost.removeOverlay();
+            KeyboardOverlayHost.attachToInputFrame(brailleView,
+                    imeInputFrame());
         }
-        android.view.View inputFrame = getWindow().getWindow().getDecorView()
-                .findViewById(android.R.id.inputArea);
-        if (inputFrame instanceof ViewGroup) {
-            ((ViewGroup) inputFrame).addView(brailleView,
-                    new FrameLayout.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.WRAP_CONTENT));
+        boolean isOverlay = KeyboardOverlayHost.isInOverlay(brailleView);
+        if (wasOverlay != isOverlay) {
+            Diagnostics.log(this, "full-screen overlay "
+                    + (isOverlay ? "shown" : "removed"));
         }
+    }
+
+    /** The frame of the IME window that hosts the keyboard view. */
+    private ViewGroup imeInputFrame() {
+        Window window = getWindow().getWindow();
+        if (window == null) {
+            return null;
+        }
+        return (ViewGroup) window.getDecorView().findViewById(
+                android.R.id.inputArea);
     }
 
     @Override
@@ -241,13 +249,6 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         // The keyboard window is gone, so TalkBack can handle the screen
         // normally again.
         AccessibilityService.setKeyboardPassthrough(false);
-        // Moving to a different field or losing input entirely ends the
-        // session for good; take the overlay down now as well. Mere input
-        // restarts (finishingInput == false) leave it alone so it cannot
-        // flicker.
-        if (finishingInput) {
-            AccessibilityService.removeKeyboardOverlay();
-        }
         emojiMode = false;
         commandMode = false;
         if (commandModeEngine != null) {
@@ -267,18 +268,17 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
     public void onWindowHidden() {
         super.onWindowHidden();
         // The keyboard window is really gone now (unlike onFinishInputView,
-        // which also runs on mere input restarts), so drop the full-screen
-        // overlay if it was hosting the keyboard.
-        AccessibilityService.removeKeyboardOverlay();
+        // which also runs on mere input restarts), so take the full-screen
+        // overlay down with it.
+        KeyboardOverlayHost.removeOverlay();
     }
 
     @Override
     public void onWindowShown() {
         super.onWindowShown();
-        // A genuine show ends any earlier explicit-close suppression and
-        // makes sure the overlay exists when Full-screen mode is on.
-        overlaySuppressed = false;
-        updateKeyboardPlacement();
+        // A genuine show of the keyboard window; make sure the keyboard view
+        // lives where the current configuration wants it.
+        applyPlacement();
     }
 
     @Override
@@ -287,7 +287,7 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         // Make sure the screen is never left in passthrough mode.
         AccessibilityService.setKeyboardPassthrough(false);
         // Nor under a stale full-screen keyboard overlay.
-        AccessibilityService.removeKeyboardOverlay();
+        KeyboardOverlayHost.removeOverlay();
         if (brailleParser != null) {
             brailleParser.destroy();
             brailleParser = null;
@@ -305,47 +305,15 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
     }
 
     /**
-     * Puts the keyboard view in the right window: the topmost accessibility
-     * overlay when "Full-screen mode" is on (the IME window keeps running
-     * underneath it), otherwise the IME window's own input frame. Every step
-     * is a no-op when the view already lives in the right place, so frequent
-     * input restarts cannot make the keyboard close and reopen.
+     * Called after the keyboard view toggled between shrunken and expanded.
+     * Updates the IME window size and moves the keyboard view between the
+     * full-screen overlay and the IME window immediately, instead of waiting
+     * for the next genuine show.
      */
-    private void updateKeyboardPlacement() {
-        if (brailleView == null || brailleView.getParent() == null) {
-            // A freshly created view is attached by the framework itself
-            // (setInputView); leave it alone until it lives somewhere.
-            return;
-        }
-        boolean overlayBefore =
-                AccessibilityService.isKeyboardHostedInOverlay(brailleView);
-        if (isFullscreenPreferred() && !overlaySuppressed) {
-            AccessibilityService.showKeyboardOverlay(brailleView);
-        } else {
-            restoreViewToInputFrame();
-        }
-        boolean overlayAfter =
-                AccessibilityService.isKeyboardHostedInOverlay(brailleView);
-        if (overlayBefore != overlayAfter) {
-            Diagnostics.log(this, "full-screen overlay "
-                    + (overlayAfter ? "shown" : "removed"));
-        }
-    }
-
     @Override
-    public void updateFullscreenMode() {
-        super.updateFullscreenMode();
-        // InputMethodService calls this constantly, including while it hides
-        // the window after an explicit close. Re-running placement on every
-        // call resurrected the full-screen overlay over a hidden keyboard, so
-        // only react to real shrink-state changes here (the shrink and expand
-        // gestures notify through this method).
-        boolean shrunk = brailleView != null && brailleView.getShrinkKeyboard();
-        if (!placedOnce || shrunk != placedShrinkState) {
-            placedOnce = true;
-            placedShrinkState = shrunk;
-            updateKeyboardPlacement();
-        }
+    public void onShrinkStateChanged() {
+        updateFullscreenMode();
+        applyPlacement();
     }
 
     // Whether the user wants the keyboard to cover the whole screen.
@@ -749,10 +717,7 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         // the reference keyboard does. It covers the whole screen, so waiting
         // for the framework to report the hide can leave the device stuck
         // behind it.
-        AccessibilityService.removeKeyboardOverlay();
-        // Nothing may bring the overlay back until the keyboard is genuinely
-        // shown again; the framework is still processing the hide below.
-        overlaySuppressed = true;
+        KeyboardOverlayHost.removeOverlay();
         requestHideSelf(0);
     }
 
@@ -762,7 +727,7 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         // screen including the system bars, so BACK must close the keyboard.
         if (keyCode == KeyEvent.KEYCODE_BACK && isInputViewShown()
                 && brailleView != null
-                && AccessibilityService.isKeyboardHostedInOverlay(brailleView)) {
+                && KeyboardOverlayHost.isInOverlay(brailleView)) {
             closeKeyboard();
             return true;
         }

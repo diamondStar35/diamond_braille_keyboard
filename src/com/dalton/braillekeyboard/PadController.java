@@ -12,7 +12,7 @@ import android.os.Looper;
  * currently pressed down, the calibration bookkeeping and the swipe
  * resolution, together with the logic that positions the pad.
  *
- * <p>Extracted from {@link com.dalton.braillekeyboard.View} so the view is
+ * <p>Extracted from {@link com.dalton.braillekeyboard.BrailleKeyboardView} so the view is
  * left with touch dispatch, drawing and speech concerns while all pad state
  * lives here. The view feeds translated touch coordinates in through the
  * {@code onPointer*} methods and asks for swipes and dot patterns back.
