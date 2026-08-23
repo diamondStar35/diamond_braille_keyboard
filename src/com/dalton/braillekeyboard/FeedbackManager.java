@@ -20,8 +20,9 @@ import java.util.List;
 public class FeedbackManager {
 
     private final Context context;
-    private final SoundThemeManager soundThemeManager;
     private final Vibrator vibrator;
+    private SoundThemeManager soundThemeManager;
+    private boolean released;
 
     // Reload the sound theme as soon as it is changed in the settings, even
     // while the keyboard is already open.
@@ -48,8 +49,25 @@ public class FeedbackManager {
                 .registerOnSharedPreferenceChangeListener(themeListener);
     }
 
+    /**
+     * Recreates the sound pipeline after {@link #release()} so a manager can
+     * be reused when its keyboard view is shown again. Without this, events
+     * after a release would be silently dropped.
+     */
+    private void ensureActive() {
+        if (!released) {
+            return;
+        }
+        released = false;
+        soundThemeManager = new SoundThemeManager(context);
+        reloadTheme();
+        Options.getSharedPreferences(context)
+                .registerOnSharedPreferenceChangeListener(themeListener);
+    }
+
     /** (Re)load the sound theme selected in the settings. */
     public void reloadTheme() {
+        ensureActive();
         soundThemeManager.reloadTheme();
     }
 
@@ -58,11 +76,19 @@ public class FeedbackManager {
         return SoundTheme.listThemes(context);
     }
 
+    /** Vibrate for the given time; the keyboard's single haptics channel. */
+    public void vibrate(long milliseconds) {
+        if (vibrator != null && milliseconds > 0) {
+            vibrator.vibrate(milliseconds);
+        }
+    }
+
     /**
      * Fire a feedback event: play the active theme's sound when sound
      * feedback is enabled, and vibrate when haptic feedback is enabled.
      */
     public void emitEvent(FeedbackEvent event) {
+        ensureActive();
         if (Options.getBooleanPreference(context,
                 R.string.pref_sound_feedback_key, true)) {
             soundThemeManager.playEvent(event);
@@ -70,21 +96,30 @@ public class FeedbackManager {
 
         if (Options.getBooleanPreference(context,
                 R.string.pref_haptic_feedback_key, true)
-                && event.isHapticEnabled(context) && vibrator != null) {
+                && event.isHapticEnabled(context)) {
             long duration = event.vibrationMillis;
             if (duration > 0) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    vibrator.vibrate(VibrationEffect.createOneShot(duration,
-                            VibrationEffect.DEFAULT_AMPLITUDE));
+                    vibrateEffect(duration,
+                            VibrationEffect.DEFAULT_AMPLITUDE);
                 } else {
-                    vibrator.vibrate(duration);
+                    vibrate(duration);
                 }
             }
         }
     }
 
+    private void vibrateEffect(long milliseconds, int amplitude) {
+        vibrator.vibrate(VibrationEffect.createOneShot(milliseconds,
+                amplitude));
+    }
+
     /** Release the SoundPool, all loaded sounds and the preference listener. */
     public void release() {
+        if (released) {
+            return;
+        }
+        released = true;
         Options.getSharedPreferences(context)
                 .unregisterOnSharedPreferenceChangeListener(themeListener);
         soundThemeManager.release();

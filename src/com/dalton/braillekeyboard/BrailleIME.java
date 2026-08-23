@@ -117,6 +117,11 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         // If a previous keyboard view is still hosted in the full-screen
         // overlay, drop that stale window before creating the new view.
         KeyboardOverlayHost.removeOverlay();
+        // A replaced keyboard view is never used again; release its sound
+        // resources so discarded views cannot leak SoundPools or listeners.
+        if (brailleView != null) {
+            brailleView.releaseResources();
+        }
         brailleView = (BrailleKeyboardView) getLayoutInflater().inflate(
                 R.layout.keyboard, null);
 
@@ -329,7 +334,7 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
     private void brailleParserReady(int status) {
         if (status == Parser.STATUS_OK) {
             if (brailleView != null) {
-                brailleView.setLocale(getLocale());
+                brailleView.applyLocale(getLocale());
             }
         }
     }

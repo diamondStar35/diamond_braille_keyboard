@@ -16,63 +16,41 @@
 
 package com.dalton.braillekeyboard;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 
 import android.content.Context;
-import android.content.res.Resources;
 import android.graphics.Canvas;
-import android.graphics.Paint;
-import android.graphics.Paint.FontMetrics;
-import android.graphics.Paint.Style;
-import android.graphics.Rect;
-import androidx.core.view.MotionEventCompat;
 import android.os.Build;
-import android.os.Vibrator;
 import android.util.AttributeSet;
-import android.util.DisplayMetrics;
-import android.util.TypedValue;
 import android.view.MotionEvent;
 import android.view.accessibility.AccessibilityManager;
 
 import androidx.core.content.ContextCompat;
 
-import com.dalton.braillekeyboard.Coords;
-import com.dalton.braillekeyboard.Swipe;
-
 /**
- * This View facilitates displaying a Braille keyboard to the user on the entire
- * screen and handling taps and swipes by using the ActionHandler.
- * 
- * This View holds an instance to an implementation of Pad and parses all of
- * it's touch events to the Pad to resolve which dots were hit or nearest the
- * user's touch. The pad and calibration state itself lives in a
- * {@link PadController}; this view owns the touch dispatch, drawing, speech
- * and feedback.
- * 
- * The View will then pass the appropriate swipe and dot pressed events to an
- * ActionHandler to perform the appropriate action.
- * 
- * This View also implements the OnActionListener callback and will display
- * results, send notifications or change View states appropriate to the
- * callbacks received from the ActionHandler.
- * 
- * You should register an IME listener with this View in order for the
- * ActionHandler and this View to function. See
- * onInitialiseForInput(KeyboardListener listener).
- * 
- * You should always call close() when you are done with the View to release
- * resources.
+ * The Braille keyboard view: a full-screen touch surface where the user
+ * presses Braille dots and performs gestures.
+ *
+ * <p>The pad geometry and calibration state live in {@link PadController};
+ * drawing lives in {@link DotRenderer}, coordinate mapping in
+ * {@link TouchMapper}, announcements in {@link KeyboardSpeaker} and touch
+ * diagnostics in {@link TouchLog}. This class wires those together, owns the
+ * touch dispatch loop and implements the callbacks of
+ * {@link ActionHandler.OnActionListener}.
+ *
+ * You should register an IME listener with this view through
+ * {@link #onInitialiseForInput} for the ActionHandler to function, and always
+ * call {@link #close()} when done with the view to release resources.
  */
-public class BrailleKeyboardView extends android.view.View implements PadController.Listener {
+public class BrailleKeyboardView extends android.view.View
+        implements PadController.Listener {
     private final AccessibilityManager accessibilityManager;
-    private final Paint circlePaint;
-    private final Paint paint;
-    private final Rect circleTextBounds = new Rect();
+    private final DotRenderer renderer = new DotRenderer();
     private final PadController padController;
+    private final KeyboardSpeaker speaker;
     private FeedbackManager feedbackManager;
-    private final ActionHandler.OnActionListener actionListener = new ActionHandler.OnActionListener() {
+    private final ActionHandler.OnActionListener actionListener =
+            new ActionHandler.OnActionListener() {
 
         @Override
         public void onSetDots(boolean dot7, boolean dot8) {
@@ -81,15 +59,14 @@ public class BrailleKeyboardView extends android.view.View implements PadControl
 
         @Override
         public void onText(String format, String text, boolean isPasswordField) {
-            speech.readConsiderPassword(getContext(), format, text,
-                    isPasswordField, Speech.QUEUE_FLUSH);
+            speaker.readConsiderPassword(format, text, isPasswordField,
+                    Speech.QUEUE_FLUSH);
         }
 
         @Override
         public void onText(String format, String text, boolean isPasswordField,
                 int mode) {
-            speech.readConsiderPassword(getContext(), format, text,
-                    isPasswordField, mode);
+            speaker.readConsiderPassword(format, text, isPasswordField, mode);
         }
 
         @Override
@@ -104,12 +81,12 @@ public class BrailleKeyboardView extends android.view.View implements PadControl
 
         @Override
         public void onSetLocale(Locale locale) {
-            setLocale(locale);
+            applyLocale(locale);
         }
 
         @Override
         public void onShrink() {
-            setLocale(Locale.getDefault());
+            applyLocale(Locale.getDefault());
             shrinkKeyboard = true;
             invalidate();
             requestLayout();
@@ -123,48 +100,42 @@ public class BrailleKeyboardView extends android.view.View implements PadControl
 
         @Override
         public void onShutup() {
-            speech.stop();
+            speaker.stop();
         }
     };
 
     private ActionHandler actionHandler;
-    private DisplayParams displayParams = null;
     private KeyboardListener listener;
     private boolean shrinkKeyboard;
-    private Speech speech;
-    private final Vibrator vibrator;
 
     public BrailleKeyboardView(Context context, AttributeSet attrs) {
         super(context, attrs);
-        paint = new Paint();
-        circlePaint = new Paint();
         accessibilityManager = (AccessibilityManager) context
                 .getSystemService(Context.ACCESSIBILITY_SERVICE);
-        vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
+        speaker = new KeyboardSpeaker(context);
         padController = new PadController(context, this);
         feedbackManager = new FeedbackManager(context);
     }
 
     /**
-     * Gets the View ready to receive touch events from the user and facilitates
-     * communication with the underlying IME.
-     * 
+     * Gets the view ready to receive touch events from the user and
+     * facilitates communication with the underlying IME.
+     *
      * @param listener
-     *            The KeyboardListener implementation of to communicate with the
+     *            The KeyboardListener implementation to communicate with the
      *            IME.
      */
     public void onInitialiseForInput(Context context, KeyboardListener listener) {
         this.listener = listener;
 
         // Set up speech and announce when it's ready to the user.
-        speech = new Speech(getContext(), new Speech.OnReadyListener() {
+        speaker.create(new Speech.OnReadyListener() {
 
             @Override
             public void ttsReady() {
-                setLocale(BrailleKeyboardView.this.listener.getLocale());
+                applyLocale(BrailleKeyboardView.this.listener.getLocale());
                 if (SpeechEvent.KEYBOARD_SHOWN.isEnabled(getContext())) {
-                    speech.speak(getContext(),
-                            getContext().getString(R.string.ready),
+                    speaker.speak(getContext().getString(R.string.ready),
                             Speech.QUEUE_FLUSH);
                 }
             }
@@ -176,7 +147,7 @@ public class BrailleKeyboardView extends android.view.View implements PadControl
             expandKeyboard();
         }
 
-        if (displayParams != null) {
+        if (renderer.params() != null) {
             padController.loadDefaultPad(getWidth(), getHeight());
             invalidate();
             requestLayout();
@@ -184,23 +155,29 @@ public class BrailleKeyboardView extends android.view.View implements PadControl
         actionHandler = new ActionHandler(context);
         actionHandler.setCallback(actionListener);
         actionHandler.setKeyboardListener(listener);
-        logKeyboardState("keyboard initialised");
+        TouchLog.keyboardState(this, padController, renderer,
+                "keyboard initialised");
     }
 
     public void close() {
         feedbackManager.emitEvent(FeedbackEvent.CLOSE);
-        speech.shutdown(SpeechEvent.KEYBOARD_CLOSED.isEnabled(getContext())
+        speaker.shutdown(SpeechEvent.KEYBOARD_CLOSED.isEnabled(getContext())
                 ? getContext().getString(R.string.closing_keyboard) : null);
         actionHandler.shutdown();
-        setLocale(Locale.getDefault(), false);
+        applyLocale(Locale.getDefault(), false);
+    }
+
+    /** Releases resources when this view will never be used again. */
+    public void releaseResources() {
+        feedbackManager.release();
     }
 
     @Override
     public void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
-        setDisplayParams(w, h);
+        renderer.setSize(getContext(), w, h);
         padController.loadInitialPad(w, h);
-        logKeyboardState("size changed");
+        TouchLog.keyboardState(this, padController, renderer, "size changed");
     }
 
     @Override
@@ -209,18 +186,13 @@ public class BrailleKeyboardView extends android.view.View implements PadControl
         if (padController.isManualCalibrating()) {
             // During the guided calibration the next dot to touch is shown
             // on the screen as well as spoken.
-            paint.setTextSize(50.0f);
-            String msg = getContext().getString(
+            renderer.drawCalibrationBanner(canvas, getContext().getString(
                     R.string.calibration_step,
-                    padController.getCurrentCalibrationStep() + 1);
-            canvas.drawText(msg, 50.0f, 100.0f, paint);
-            // Restore the label size used for the dot circles.
-            if (displayParams != null) {
-                paint.setTextSize(displayParams.textSize);
-            }
+                    padController.getCurrentCalibrationStep() + 1));
         }
+        DotRenderer.DisplayParams params = renderer.params();
         if (!shrinkKeyboard
-                && displayParams != null
+                && params != null
                 && Options.getBooleanPreference(
                         getContext(),
                         R.string.pref_show_circles_key,
@@ -235,26 +207,16 @@ public class BrailleKeyboardView extends android.view.View implements PadControl
                 setContentDescription(null);
             }
 
-            List<Coords> keys = padController.getKeys();
-            // For each dot draw a circle on the screen at it's position and
-            // write the corresponding dot number in the circle.
-            for (int i = 0; i < keys.size(); i++) {
-                int x = displayParams.autoRotate || getWidth() >= getHeight() ? keys
-                        .get(i).x : keys.get(i).y;
-                int y = displayParams.autoRotate || getWidth() >= getHeight() ? keys
-                        .get(i).y : keys.get(i).x;
-                String text = String.valueOf(i + 1);
-                paint.getTextBounds(text, 0, text.length(), circleTextBounds);
-                canvas.drawCircle(x, y, displayParams.radius, circlePaint);
-                canvas.drawText(text, x, y, paint);
-            }
-        } else if (shrinkKeyboard) {
-            String text = getContext().getString(R.string.expand_keyboard);
+            renderer.drawDots(canvas, padController.getKeys(),
+                    params.autoRotate, getWidth(), getHeight());
+        } else if (shrinkKeyboard && params != null) {
+            CharSequence text = getContext()
+                    .getString(R.string.expand_keyboard);
             if (needsTalkBackWarning()) {
                 text = getContext()
                         .getString(R.string.expand_keyboard_talkback);
             }
-            canvas.drawText(text, displayParams.x, displayParams.y, paint);
+            renderer.drawShrunkLabel(canvas, text);
             setContentDescription(text);
         }
         setPrivacy();
@@ -303,15 +265,12 @@ public class BrailleKeyboardView extends android.view.View implements PadControl
         // so the keyboard works and hover events are never delivered.
         if (needsTalkBackWarning()) {
             if (shrinkKeyboard) {
-                speech.speak(
-                        getContext(),
-                        getContext().getString(
-                                R.string.expand_keyboard_talkback),
+                speaker.speak(getContext()
+                        .getString(R.string.expand_keyboard_talkback),
                         Speech.QUEUE_FLUSH);
             } else {
-                speech.speak(getContext(),
-                        getContext().getString(getTalkBackWarningMessage()),
-                        Speech.QUEUE_FLUSH);
+                speaker.speak(getContext().getString(
+                        getTalkBackWarningMessage()), Speech.QUEUE_FLUSH);
             }
         }
         return super.onHoverEvent(event);
@@ -320,41 +279,47 @@ public class BrailleKeyboardView extends android.view.View implements PadControl
     @Override
     public boolean onTouchEvent(MotionEvent motionEvent) {
         super.onTouchEvent(motionEvent);
-        // Get the height and width of the keyboard.
-        // If autoRotate is enabled then the standard dimenssions are correct.
-        // If autoRotate is disabled the width is the maximum of the height and
-        // the width and the height is the minimum of the two.
-        // This is because the user holds the phone in landscape mode, but the
-        // screen might be fixed to portrate mode. It makes more sense to use
-        // the keyboard in landscape mode and the user doesn't care about
-        // orientation of the screen.
-        int width = displayParams.autoRotate ? getWidth() : Math.max(
-                getWidth(), getHeight());
-        int height = displayParams.autoRotate ? getHeight() : Math.min(
-                getWidth(), getHeight());
-        int action = MotionEventCompat.getActionMasked(motionEvent);
-        int index = MotionEventCompat.getActionIndex(motionEvent);
-        int id = MotionEventCompat.getPointerId(motionEvent, index);
-        int x = (int) MotionEventCompat.getX(motionEvent, index);
-        int y = (int) MotionEventCompat.getY(motionEvent, index);
+
+        DotRenderer.DisplayParams params = renderer.params();
+        if (params == null) {
+            // No size known yet, so there is no pad to resolve touches
+            // against; consume the event without action.
+            return true;
+        }
+        boolean autoRotate = params.autoRotate;
+        // Get the dimensions of the keyboard in keyboard space. If autoRotate
+        // is disabled the width is the maximum of the height and the width
+        // and the height is the minimum of the two. This is because the user
+        // holds the phone in landscape mode, but the screen might be fixed
+        // to portrait mode.
+        int width = TouchMapper.normalizedWidth(autoRotate, getWidth(),
+                getHeight());
+        int height = TouchMapper.normalizedHeight(autoRotate, getWidth(),
+                getHeight());
+        int action = motionEvent.getActionMasked();
+        int index = motionEvent.getActionIndex();
+        int id = motionEvent.getPointerId(index);
+        int x = (int) motionEvent.getX(index);
+        int y = (int) motionEvent.getY(index);
         int rawX = x;
         int rawY = y;
-
-        // Swap x and y if the view is being used perpendicular to it's intended
-        // purpose see above.
-        int tempX = x;
-        x = displayParams.autoRotate || getWidth() >= getHeight() ? x : y;
-        y = displayParams.autoRotate || getWidth() >= getHeight() ? y : tempX;
+        // Swap x and y if the view is being used perpendicular to its
+        // intended purpose.
+        x = TouchMapper.mapX(autoRotate, getWidth(), getHeight(), rawX, rawY);
+        y = TouchMapper.mapY(autoRotate, getWidth(), getHeight(), rawX, rawY);
         Swipe swipe = Swipe.NONE;
 
         // Record the touch in the diagnostic log so that reports of the
-        // keyboard not receiving touches can be traced.
+        // keyboard not receiving touches can be traced. TouchLog gates on the
+        // logging preference before building anything.
         if (action == MotionEvent.ACTION_DOWN
                 || action == MotionEvent.ACTION_POINTER_DOWN
                 || action == MotionEvent.ACTION_UP
-                || action == MotionEventCompat.ACTION_POINTER_UP
+                || action == MotionEvent.ACTION_POINTER_UP
                 || action == MotionEvent.ACTION_CANCEL) {
-            logTouch(actionName(action), motionEvent, id, rawX, rawY, x, y);
+            TouchLog.touch(getContext(), padController,
+                    TouchLog.actionName(action), motionEvent, id, rawX, rawY,
+                    x, y);
         }
 
         // During a calibration every touch places the next dot instead of
@@ -384,7 +349,6 @@ public class BrailleKeyboardView extends android.view.View implements PadControl
                 padController.checkAndScheduleCalibration(width, height);
             }
             break;
-        case MotionEvent.ACTION_HOVER_EXIT:
         case MotionEvent.ACTION_UP:
             // A finger was lifted, so any pending calibration attempt is
             // abandoned (the fingers must be held down without lifting).
@@ -408,10 +372,8 @@ public class BrailleKeyboardView extends android.view.View implements PadControl
                 }
                 padController.clearLastDotList();
             }
-            Diagnostics.log(getContext(), "gesture: swipe=" + swipe.name()
-                    + " handled=" + padController.isHandledSwipe()
-                    + " action=" + actionName(swipe) + " "
-                    + padController.describeSwipe(isSwap()));
+            TouchLog.gesture(getContext(), padController, swipe, isSwap(),
+                    false);
             padController.reset();
             // Nudge the dots towards where the user actually touches them,
             // using the drift measured while typing. This is a no-op when
@@ -427,19 +389,19 @@ public class BrailleKeyboardView extends android.view.View implements PadControl
                 invalidate();
             }
             break;
-        case MotionEventCompat.ACTION_HOVER_MOVE:
         case MotionEvent.ACTION_MOVE:
-            for (int i = 0; i < MotionEventCompat.getPointerCount(motionEvent); i++) {
-                int pId = MotionEventCompat.getPointerId(motionEvent, i);
-                int pX = (int) MotionEventCompat.getX(motionEvent, i);
-                int pY = (int) MotionEventCompat.getY(motionEvent, i);
-                int tX = pX;
-                pX = displayParams.autoRotate || getWidth() >= getHeight() ? pX : pY;
-                pY = displayParams.autoRotate || getWidth() >= getHeight() ? pY : tX;
-                padController.onPointerMove(pId, pX, pY);
+            for (int i = 0; i < motionEvent.getPointerCount(); i++) {
+                int pId = motionEvent.getPointerId(i);
+                int pX = (int) motionEvent.getX(i);
+                int pY = (int) motionEvent.getY(i);
+                int mappedX = TouchMapper.mapX(autoRotate, getWidth(),
+                        getHeight(), pX, pY);
+                int mappedY = TouchMapper.mapY(autoRotate, getWidth(),
+                        getHeight(), pX, pY);
+                padController.onPointerMove(pId, mappedX, mappedY);
             }
             break;
-        case MotionEventCompat.ACTION_POINTER_UP:
+        case MotionEvent.ACTION_POINTER_UP:
             padController.cancelCalibrationScheduled();
             padController.onPointerMove(id, x, y);
             swipe = padController.resolveMultiFingerSwipe(isSwap());
@@ -454,11 +416,8 @@ public class BrailleKeyboardView extends android.view.View implements PadControl
                     actionHandler.handleSwipe(getContext(), swipe);
                 }
             }
-            Diagnostics.log(getContext(), "gesture(pointer_up): swipe="
-                    + swipe.name() + " handled="
-                    + padController.isHandledSwipe() + " action="
-                    + actionName(swipe) + " "
-                    + padController.describeSwipe(isSwap()));
+            TouchLog.gesture(getContext(), padController, swipe, isSwap(),
+                    true);
             break;
         default:
         }
@@ -469,26 +428,13 @@ public class BrailleKeyboardView extends android.view.View implements PadControl
         return shrinkKeyboard;
     }
 
-    public boolean setLocale(Locale locale) {
-        return setLocale(locale, true);
+    /** Switches the process resources (and optionally TTS) to the locale. */
+    public boolean applyLocale(Locale locale) {
+        return applyLocale(locale, true);
     }
 
-    private boolean setLocale(Locale locale, boolean setTTSLocale) {
-        if (locale != null) {
-            Resources resources = getContext().getResources();
-            DisplayMetrics displayMetrics = resources.getDisplayMetrics();
-            android.content.res.Configuration conf = resources
-                    .getConfiguration();
-            if (!conf.locale.equals(locale)) {
-                if (!setTTSLocale || (setTTSLocale && speech.setLocale(locale))) {
-                    conf.setLocale(locale);
-                    resources.updateConfiguration(conf, displayMetrics);
-
-                    return true;
-                }
-            }
-        }
-        return false;
+    private boolean applyLocale(Locale locale, boolean setTtsLocale) {
+        return speaker.applyLocale(locale, setTtsLocale);
     }
 
     public void emitFeedbackEvent(FeedbackEvent event) {
@@ -498,11 +444,10 @@ public class BrailleKeyboardView extends android.view.View implements PadControl
     }
 
     private void expandKeyboard() {
-        speech.speak(getContext(),
-                getContext().getString(R.string.keyboard_full_screen),
+        speaker.speak(getContext().getString(R.string.keyboard_full_screen),
                 Speech.QUEUE_FLUSH);
         shrinkKeyboard = false;
-        setLocale(listener.getLocale());
+        applyLocale(listener.getLocale());
         invalidate();
         requestLayout();
         listener.onShrinkStateChanged();
@@ -516,16 +461,9 @@ public class BrailleKeyboardView extends android.view.View implements PadControl
     // True when the view is used on a portrait screen held in landscape, in
     // which case the touch axes are swapped before any swipe is resolved.
     private boolean isSwap() {
-        return getHeight() > getWidth() && !displayParams.autoRotate;
-    }
-
-    // The name of the action bound to the resolved gesture, for the
-    // diagnostic log.
-    private String actionName(Swipe swipe) {
-        if (swipe == Swipe.NONE) {
-            return "none";
-        }
-        return swipe.getBoundAction(getContext()).name();
+        DotRenderer.DisplayParams params = renderer.params();
+        return params != null && TouchMapper.isSwap(params.autoRotate,
+                getWidth(), getHeight());
     }
 
     /**
@@ -567,185 +505,31 @@ public class BrailleKeyboardView extends android.view.View implements PadControl
         }
     }
 
-    // Write the keyboard geometry, orientation and dot placement to the
-    // diagnostic log, used to diagnose reports of the keyboard not
-    // responding or the dots not being where the user expects them.
-    private void logKeyboardState(String reason) {
-        if (!Diagnostics.isEnabled(getContext())) {
-            return;
-        }
-        StringBuilder sb = new StringBuilder(reason);
-        sb.append(" view=").append(getWidth()).append('x')
-                .append(getHeight());
-        int[] location = new int[2];
-        getLocationOnScreen(location);
-        sb.append(" onScreen=(").append(location[0]).append(',')
-                .append(location[1]).append(")-(")
-                .append(location[0] + getWidth()).append(',')
-                .append(location[1] + getHeight()).append(')');
-        Rect frame = new Rect();
-        getWindowVisibleDisplayFrame(frame);
-        sb.append(" window=").append(frame.toShortString());
-        sb.append(" rotation=")
-                .append(Diagnostics.rotationLabel(getContext()));
-        sb.append(" invert=").append(Options.getBooleanPreference(
-                getContext(), R.string.pref_keyboard_invert_key,
-                Boolean.parseBoolean(getContext().getString(
-                        R.string.pref_keyboard_invert_default))));
-        sb.append(" autoRotate=")
-                .append(displayParams != null ? displayParams.autoRotate
-                        : '?');
-        if (!padController.hasPad()) {
-            sb.append(" pad=null");
-        } else {
-            sb.append(" padType=").append(padController.getPadTypeName());
-            List<Coords> keys = padController.getKeys();
-            sb.append(" dots=");
-            for (int i = 0; i < keys.size(); i++) {
-                Coords key = keys.get(i);
-                sb.append(i + 1).append('(').append(key.x).append(',')
-                        .append(key.y).append(')');
-                if (i + 1 < keys.size()) {
-                    sb.append(' ');
-                }
-            }
-        }
-        Diagnostics.log(getContext(), sb.toString());
-    }
-
-    // Write a single touch to the diagnostic log with both the raw screen
-    // coordinates and the coordinates mapped onto the keyboard.
-    private void logTouch(String event, MotionEvent motionEvent, int id,
-            int rawX, int rawY, int x, int y) {
-        StringBuilder sb = new StringBuilder("touch ");
-        sb.append(event).append(" ptr=")
-                .append(MotionEventCompat.getPointerCount(motionEvent))
-                .append(" id=").append(id).append(" raw=(").append(rawX)
-                .append(',').append(rawY).append(") mapped=(").append(x)
-                .append(',').append(y).append(')');
-        if (padController.isManualCalibrating()) {
-            sb.append(" calibrating");
-        }
-        sb.append(" pressed=0x").append(Integer
-                .toHexString(padController.getPressedDotString()));
-        sb.append(nearestDot(x, y));
-        Diagnostics.log(getContext(), sb.toString());
-    }
-
-    // The dot closest to a touch and its distance, used to see whether the
-    // dot positions match where the user actually touches the screen.
-    private String nearestDot(int x, int y) {
-        if (!padController.hasPad()) {
-            return "";
-        }
-        int bestIndex = -1;
-        int bestDistance = Integer.MAX_VALUE;
-        List<Coords> keys = padController.getKeys();
-        for (int i = 0; i < keys.size(); i++) {
-            Coords key = keys.get(i);
-            int dx = key.x - x;
-            int dy = key.y - y;
-            int distance = dx * dx + dy * dy;
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                bestIndex = i;
-            }
-        }
-        if (bestIndex < 0) {
-            return "";
-        }
-        return " near=dot" + (bestIndex + 1) + "("
-                + Math.round(Math.sqrt(bestDistance)) + "px)";
-    }
-
-    private static String actionName(int action) {
-        switch (action) {
-        case MotionEvent.ACTION_DOWN:
-            return "down";
-        case MotionEventCompat.ACTION_POINTER_DOWN:
-            return "pointer_down";
-        case MotionEvent.ACTION_UP:
-            return "up";
-        case MotionEventCompat.ACTION_POINTER_UP:
-            return "pointer_up";
-        case MotionEvent.ACTION_CANCEL:
-            return "cancel";
-        case MotionEvent.ACTION_MOVE:
-            return "move";
-        case MotionEventCompat.ACTION_HOVER_MOVE:
-            return "hover_move";
-        case MotionEvent.ACTION_HOVER_EXIT:
-            return "hover_exit";
-        default:
-            return "action_" + action;
-        }
-    }
-
-    private void setDisplayParams(int w, int h) {
-        final int CIRCLE_RADIUS = 40;
-        final int STROKE_WIDTH = 8;
-        final int TEXT_SIZE = 20;
-        int strokeWidth = (int) TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP, STROKE_WIDTH, getContext()
-                        .getResources().getDisplayMetrics());
-        int textSize = (int) TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP, TEXT_SIZE, getContext()
-                        .getResources().getDisplayMetrics());
-        int radius = (int) TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP, CIRCLE_RADIUS, getContext()
-                        .getResources().getDisplayMetrics());
-        boolean autoRotate = Options.getBooleanPreference(
-                getContext(),
-                R.string.pref_auto_rotate_keyboard_key,
-                Boolean.parseBoolean(getContext().getString(
-                        R.string.pref_auto_rotate_keyboard_default)));
-        displayParams = new DisplayParams(strokeWidth, textSize, radius,
-                autoRotate);
-        paint.setColor(ContextCompat.getColor(getContext(),
-                android.R.color.black));
-        paint.setTextSize(displayParams.textSize);
-        paint.setAntiAlias(true);
-        paint.setTextAlign(Paint.Align.CENTER);
-        circlePaint.setColor(ContextCompat.getColor(getContext(),
-                android.R.color.black));
-        circlePaint.setAntiAlias(true);
-        circlePaint.setStyle(Style.STROKE);
-        circlePaint.setStrokeWidth(displayParams.strokeWidth);
-
-        FontMetrics metrics = paint.getFontMetrics();
-        float height = Math.abs(metrics.top - metrics.bottom);
-        displayParams.x = getWidth() / 2;
-        displayParams.y = (getHeight() / 2) + (height / 2);
-    }
-
     // PadController.Listener ---------------------------------------------
 
     @Override
     public void speak(int stringRes) {
-        speech.speak(getContext(), getContext().getString(stringRes),
-                Speech.QUEUE_FLUSH);
+        speaker.speak(stringRes);
     }
 
     @Override
     public void speak(int stringRes, int queueMode) {
-        speech.speak(getContext(), getContext().getString(stringRes),
-                queueMode);
+        speaker.speak(getContext().getString(stringRes), queueMode);
     }
 
     @Override
     public void speak(int stringRes, int queueMode, Object... args) {
-        speech.speak(getContext(), getContext().getString(stringRes, args),
-                queueMode);
+        speaker.speak(getContext().getString(stringRes, args), queueMode);
     }
 
     @Override
     public void speak(CharSequence text, int queueMode) {
-        speech.speak(getContext(), text, queueMode);
+        speaker.speak(text, queueMode);
     }
 
     @Override
     public void vibrate(long milliseconds) {
-        vibrator.vibrate(milliseconds);
+        feedbackManager.vibrate(milliseconds);
     }
 
     @Override
@@ -764,34 +548,17 @@ public class BrailleKeyboardView extends android.view.View implements PadControl
 
     @Override
     public boolean autoRotate() {
-        return displayParams.autoRotate;
+        DotRenderer.DisplayParams params = renderer.params();
+        return params != null && params.autoRotate;
     }
 
     @Override
     public boolean portraitSwap() {
-        return getHeight() > getWidth() && !displayParams.autoRotate;
+        return isSwap();
     }
 
     @Override
     public int dots() {
         return listener.getDots();
-    }
-
-    private static class DisplayParams {
-        public final int strokeWidth;
-        public final int textSize;
-        public final int radius;
-        public final boolean autoRotate;
-
-        public float x;
-        public float y;
-
-        public DisplayParams(int strokeWidth, int textSize, int radius,
-                boolean autoRotate) {
-            this.strokeWidth = strokeWidth;
-            this.textSize = textSize;
-            this.radius = radius;
-            this.autoRotate = autoRotate;
-        }
     }
 }
