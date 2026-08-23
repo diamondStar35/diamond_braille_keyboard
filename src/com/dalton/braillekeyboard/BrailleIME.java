@@ -59,6 +59,8 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
     private Parser brailleParser;
     private BrailleKeyboardView brailleView = null;
     private final TextComposer textComposer = new TextComposer(this);
+    /** The one process-wide speech instance, shared with the view and both engines. */
+    private Speech sharedSpeech;
     /**
      * The single access point to the editor: tracks the cursor through
      * {@link #onUpdateSelection} and through every write issued via
@@ -90,20 +92,22 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
     @Override
     public void onCreate() {
         super.onCreate();
-        // The emoji and command engines share a single Speech instance: Speech
-        // keeps a single static TTS engine, and each new Speech constructor
-        // replaces it with a freshly-initialising engine. Constructing two
-        // Speech instances back-to-back here orphaned the first one's engine
-        // before its asynchronous initialisation finished, permanently
-        // silencing it (the emoji engine). View creates its own Speech later,
-        // when the keyboard is first shown.
-        Speech speech = new Speech(this, new Speech.OnReadyListener() {
+        // One speech instance for the whole process: Speech keeps a single
+        // static TTS engine, and each new Speech constructor replaces it with
+        // a freshly-initialising engine. Any wrapper whose engine got
+        // replaced before its asynchronous initialisation finished lost its
+        // ready state permanently and fell silent (this silenced emoji and
+        // command-mode announcements whenever the keyboard opened before the
+        // engine finished starting up). Creating it once here, sharing it
+        // with the view and both engines, and never replacing it keeps every
+        // wrapper valid for the life of the process.
+        sharedSpeech = new Speech(this, new Speech.OnReadyListener() {
             @Override
             public void ttsReady() {
             }
         });
-        emojiEngine = new EmojiEngine(this, this, speech);
-        commandModeEngine = new CommandModeEngine(this, this, speech);
+        emojiEngine = new EmojiEngine(this, this, sharedSpeech);
+        commandModeEngine = new CommandModeEngine(this, this, sharedSpeech);
         if (brailleParser == null) {
             brailleParser = new Parser(this,
                     new Parser.Listener() {
@@ -205,7 +209,7 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         if (!restarting && brailleView != null) {
             // Tell the user the keyboard is ready, but only the first time it
             // starts for this input field, not restarts. That'll be annoying.
-            brailleView.onInitialiseForInput(this, this);
+            brailleView.onInitialiseForInput(this, this, sharedSpeech);
             brailleView.emitFeedbackEvent(FeedbackEvent.OPEN);
         }
         // If the user configured a specific default Braille table, activate it
@@ -317,6 +321,10 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         AccessibilityService.setKeyboardPassthrough(false);
         // Nor under a stale full-screen keyboard overlay.
         KeyboardOverlayHost.removeOverlay();
+        if (sharedSpeech != null) {
+            sharedSpeech.shutdown(null);
+            sharedSpeech = null;
+        }
         if (brailleParser != null) {
             brailleParser.destroy();
             brailleParser = null;

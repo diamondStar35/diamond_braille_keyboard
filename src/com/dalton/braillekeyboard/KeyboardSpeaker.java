@@ -26,9 +26,13 @@ import android.util.DisplayMetrics;
  * The speech facade of the keyboard: every announcement goes through here,
  * including password-aware reading and locale application.
  *
- * <p>A new engine is created for each input session by {@link #create}; see
- * the note in {@code BrailleIME.onCreate} on why the underlying engine is a
- * process-wide singleton.
+ * <p>The facade does not own an engine. It is attached to the one
+ * process-wide {@link Speech} instance that {@code BrailleIME.onCreate}
+ * creates and shares between the view and the emoji/command engines, so the
+ * underlying TTS engine is constructed once per process instead of being torn
+ * down and re-initialised on every keyboard open (which both delayed opening
+ * and raced the asynchronous initialisation against wrapper replacement,
+ * permanently silencing whichever wrapper lost).
  */
 final class KeyboardSpeaker {
 
@@ -40,11 +44,11 @@ final class KeyboardSpeaker {
     }
 
     /**
-     * Creates the TTS wrapper for this input session. The ready listener runs
-     * once the engine finished initialising.
+     * Attaches the shared speech instance owned by the IME service. Must be
+     * called before any announcement is made.
      */
-    void create(Speech.OnReadyListener readyListener) {
-        speech = new Speech(context, readyListener);
+    void attach(Speech sharedSpeech) {
+        speech = sharedSpeech;
     }
 
     /** Speaks a string resource, flushing whatever was being said. */
@@ -74,15 +78,6 @@ final class KeyboardSpeaker {
 
     void stop() {
         speech.stop();
-    }
-
-    /**
-     * Speaks an optional farewell utterance and releases the engine once it
-     * finished playing. The engine is never shut down synchronously so the
-     * farewell is not cut off.
-     */
-    void shutdown(String farewell) {
-        speech.shutdown(farewell);
     }
 
     /** Applies the locale to the speech engine first, then to resources. */

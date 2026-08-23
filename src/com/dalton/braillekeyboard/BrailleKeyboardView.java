@@ -124,22 +124,25 @@ public class BrailleKeyboardView extends android.view.View
      * @param listener
      *            The KeyboardListener implementation to communicate with the
      *            IME.
+     * @param speech
+     *            The shared speech instance owned by the IME service; it is
+     *            created once per process and never replaced, so announcements
+     *            from every component stay audible for the whole session.
      */
-    public void onInitialiseForInput(Context context, KeyboardListener listener) {
+    public void onInitialiseForInput(Context context, KeyboardListener listener,
+            Speech speech) {
         this.listener = listener;
-
-        // Set up speech and announce when it's ready to the user.
-        speaker.create(new Speech.OnReadyListener() {
-
-            @Override
-            public void ttsReady() {
-                applyLocale(BrailleKeyboardView.this.listener.getLocale());
-                if (SpeechEvent.KEYBOARD_SHOWN.isEnabled(getContext())) {
-                    speaker.speak(getContext().getString(R.string.ready),
-                            Speech.QUEUE_FLUSH);
-                }
-            }
-        });
+        speaker.attach(speech);
+        // Apply the Braille table's locale up front. When the shared engine
+        // is still initialising (rare), setLocale reports failure and the
+        // translator-ready callback applies it again a moment later.
+        applyLocale(listener.getLocale());
+        if (SpeechEvent.KEYBOARD_SHOWN.isEnabled(getContext())) {
+            // speak() is self-gating: it stays silent while the engine is
+            // still starting up instead of queueing into nothing.
+            speaker.speak(getContext().getString(R.string.ready),
+                    Speech.QUEUE_FLUSH);
+        }
 
         // When we launch the keyboard it should take up the full screen.
         feedbackManager.reloadTheme();
@@ -161,8 +164,10 @@ public class BrailleKeyboardView extends android.view.View
 
     public void close() {
         feedbackManager.emitEvent(FeedbackEvent.CLOSE);
-        speaker.shutdown(SpeechEvent.KEYBOARD_CLOSED.isEnabled(getContext())
-                ? getContext().getString(R.string.closing_keyboard) : null);
+        if (SpeechEvent.KEYBOARD_CLOSED.isEnabled(getContext())) {
+            speaker.speak(getContext().getString(R.string.closing_keyboard),
+                    Speech.QUEUE_FLUSH);
+        }
         actionHandler.shutdown();
         applyLocale(Locale.getDefault(), false);
     }
