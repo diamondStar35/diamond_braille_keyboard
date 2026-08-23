@@ -115,9 +115,14 @@ public class EmojiEngine {
         Thread loader = new Thread(new Runnable() {
             @Override
             public void run() {
-                loadEmojis();
-                loadFavorites();
-                loaded.countDown();
+                try {
+                    loadEmojis();
+                    loadFavorites();
+                } finally {
+                    // Always release the waiters, even if loading blew up;
+                    // a stuck latch would freeze emoji mode forever.
+                    loaded.countDown();
+                }
             }
         }, "emoji-preload");
         loader.setPriority(Thread.MIN_PRIORITY);
@@ -126,14 +131,20 @@ public class EmojiEngine {
 
     /** Blocks until the background asset load finished. */
     private void awaitLoaded() {
+        boolean interrupted = false;
         while (true) {
             try {
                 loaded.await();
-                return;
+                break;
             } catch (InterruptedException e) {
-                // Keep waiting; the load itself never blocks.
-                Thread.currentThread().interrupt();
+                // Swallow and keep waiting; restoring the interrupt flag
+                // before the latch counts down would make await throw
+                // immediately and spin.
+                interrupted = true;
             }
+        }
+        if (interrupted) {
+            Thread.currentThread().interrupt();
         }
     }
 

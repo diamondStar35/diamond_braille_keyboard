@@ -320,14 +320,20 @@ public abstract class Pad {
         }
 
         // The first finger (highest index) whose direction is neither
-        // untouched (000, no contact) nor DOT_NONE (111) decides the swipe.
+        // untouched (000, no contact) nor DOT_NONE (111) decides whether a
+        // swipe happened at all; the value handed to Swipe.valueOf is the
+        // whole packed pattern - the finger positions select WHICH dot the
+        // swipe belongs to, exactly like the previous string-based
+        // Integer.parseInt(sb.toString(), 2).
+        boolean hasDirection = false;
         for (int pos = coords.length - 1; pos >= 0; pos--) {
             int triplet = (packed >> (3 * pos)) & 7;
             if (triplet != 0 && triplet != 7) {
-                return Swipe.valueOf(triplet);
+                hasDirection = true;
+                break;
             }
         }
-        return Swipe.NONE;
+        return hasDirection ? Swipe.valueOf(packed) : Swipe.NONE;
     }
 
     abstract Swipe getSwipe(Coords[] coords, boolean swap);
