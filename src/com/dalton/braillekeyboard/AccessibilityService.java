@@ -140,7 +140,23 @@ public class AccessibilityService extends android.accessibilityservice.Accessibi
         return instance.showKeyboardOverlayInternal(keyboard);
     }
 
+    /**
+     * True when the given keyboard view currently lives in the full-screen
+     * overlay window.
+     */
+    public static boolean isKeyboardHostedInOverlay(View keyboard) {
+        return keyboardOverlayContainer != null
+                && keyboard.getParent() == keyboardOverlayContainer;
+    }
+
     private boolean showKeyboardOverlayInternal(View keyboard) {
+        // Already hosted here: keep the existing window. Recreating it on
+        // every call would make the keyboard visibly close and reopen
+        // whenever the editor restarts the input session (which browsers do
+        // constantly).
+        if (isKeyboardHostedInOverlay(keyboard)) {
+            return true;
+        }
         removeKeyboardOverlay();
         // For an accessibility service this window manager creates overlay
         // windows without needing the SYSTEM_ALERT_WINDOW permission.
@@ -153,13 +169,6 @@ public class AccessibilityService extends android.accessibilityservice.Accessibi
         // while it covers the whole screen.
         FrameLayout container = new FrameLayout(getApplicationContext());
         container.setBackgroundColor(Color.BLACK);
-        ViewParent parent = keyboard.getParent();
-        if (parent instanceof ViewGroup) {
-            ((ViewGroup) parent).removeView(keyboard);
-        }
-        container.addView(keyboard, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT));
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -173,9 +182,18 @@ public class AccessibilityService extends android.accessibilityservice.Accessibi
             windowManager.addView(container, params);
         } catch (RuntimeException e) {
             // The overlay could not be created (e.g. the service is being
-            // torn down); the caller keeps the keyboard in the IME window.
+            // torn down); the keyboard stays attached where it was.
             return false;
         }
+        // Only detach the keyboard once the overlay window exists, so a
+        // failure above can never leave it without a window.
+        ViewParent parent = keyboard.getParent();
+        if (parent instanceof ViewGroup) {
+            ((ViewGroup) parent).removeView(keyboard);
+        }
+        container.addView(keyboard, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
         keyboardOverlayContainer = container;
         return true;
     }
@@ -198,7 +216,9 @@ public class AccessibilityService extends android.accessibilityservice.Accessibi
             WindowManager windowManager = (WindowManager) getSystemService(
                     Context.WINDOW_SERVICE);
             if (windowManager != null) {
-                windowManager.removeView(keyboardOverlayContainer);
+                // Immediate: the overlay covers the whole screen, so it must
+                // disappear synchronously, not on a later frame.
+                windowManager.removeViewImmediate(keyboardOverlayContainer);
             }
         } catch (IllegalArgumentException e) {
             // The window was already removed.
