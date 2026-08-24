@@ -4,6 +4,9 @@
 
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Needed so a crash notification from the IME service can reach the
+         user on Android 13+. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <!-- Required on Android 11+ so the settings screen can list all installed
          TTS engines instead of only the default one. -->

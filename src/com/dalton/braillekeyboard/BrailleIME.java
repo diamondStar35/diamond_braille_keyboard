@@ -92,6 +92,10 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
     @Override
     public void onCreate() {
         super.onCreate();
+        // Catch crashes from anywhere in the process - the IME service
+        // included - so they land in the shareable log and raise a
+        // notification even when the user never opens the app.
+        CrashGuard.install(this);
         // One speech instance for the whole process: Speech keeps a single
         // static TTS engine, and each new Speech constructor replaces it with
         // a freshly-initialising engine. Any wrapper whose engine got

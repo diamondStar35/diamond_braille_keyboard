@@ -45,7 +45,7 @@ import androidx.appcompat.app.AppCompatActivity;
 public class StartupErrorActivity extends AppCompatActivity {
 
     /** Extra carrying the report text when the activity is launched. */
-    private static final String EXTRA_REPORT = "report";
+    static final String EXTRA_REPORT = "report";
 
     /**
      * Saves the crash and shows the error dialog instead of the failing

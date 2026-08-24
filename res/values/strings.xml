@@ -52,6 +52,7 @@
     <string name="pref_echo_passwords_default">false</string>
     <string name="pref_echo_passwords_key">PASSWORD_ECHO</string>
     <string name="pref_has_asked_record_audio_key">RECORD_AUDIO</string>
+    <string name="pref_asked_notifications_key">ASKED_NOTIFICATIONS</string>
     <string name="pref_keyboard_feedback_key">KEYBOARD_FEEDBACK</string>
     <string name="pref_keyboard_invert_default">false</string>
     <string name="pref_keyboard_invert_key">KEYBOARD_INVERT</string>

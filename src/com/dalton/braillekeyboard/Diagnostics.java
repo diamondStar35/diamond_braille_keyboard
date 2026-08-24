@@ -73,6 +73,15 @@ public final class Diagnostics {
         if (!isEnabled(context)) {
             return;
         }
+        logAlways(context, message);
+    }
+
+    /**
+     * Append a line to the log file regardless of the logging setting. Used
+     * for crash reports: those must reach the shared log file even when the
+     * user has logging turned off, so a problem report always contains them.
+     */
+    public static void logAlways(final Context context, final String message) {
         final Context appContext = context.getApplicationContext();
         writer.execute(new Runnable() {
             @Override

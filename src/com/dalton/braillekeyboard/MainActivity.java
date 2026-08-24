@@ -19,8 +19,10 @@ package com.dalton.braillekeyboard;
 import java.io.File;
 import java.util.List;
 
+import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -35,6 +37,8 @@ import android.widget.EditText;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 
 /**
@@ -47,17 +51,48 @@ import androidx.core.content.FileProvider;
  */
 public class MainActivity extends AppCompatActivity {
 
+    // Request code for the notification permission.
+    private static final int REQUEST_NOTIFICATIONS = 1;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         try {
             super.onCreate(savedInstanceState);
+            // Same process as the IME: catch crashes process-wide here too,
+            // in case the app is opened before the keyboard ever started.
+            CrashGuard.install(this);
             setContentView(R.layout.activity_main);
             InsetsHelper.apply(this);
             updateUIStates();
+            requestNotificationsOnce();
         } catch (Throwable e) {
             StartupErrorActivity.report(this, "MainActivity.onCreate", e);
             finish();
         }
+    }
+
+    // Ask for the notification permission on first launch (Android 13+).
+    // Without it the crash notification from the IME service would be
+    // dropped silently. Only asked once; the user can still grant it later
+    // through the system settings.
+    private void requestNotificationsOnce() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return;
+        }
+        if (ContextCompat.checkSelfPermission(this,
+                Manifest.permission.POST_NOTIFICATIONS)
+                == PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        if (Options.getBooleanPreference(this,
+                R.string.pref_asked_notifications_key, false)) {
+            return;
+        }
+        Options.writeBooleanPreference(this,
+                R.string.pref_asked_notifications_key, true);
+        ActivityCompat.requestPermissions(this, new String[] {
+                Manifest.permission.POST_NOTIFICATIONS },
+                REQUEST_NOTIFICATIONS);
     }
 
     // Called when we gain or lose focus.
