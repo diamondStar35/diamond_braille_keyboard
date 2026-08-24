@@ -31,11 +31,16 @@ public class PreferenceIME extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setTitle(R.string.settings_name);
-        InsetsHelper.apply(this);
-        getSupportFragmentManager().beginTransaction()
-                .replace(android.R.id.content, new Settings()).commit();
+        try {
+            super.onCreate(savedInstanceState);
+            setTitle(R.string.settings_name);
+            InsetsHelper.apply(this);
+            getSupportFragmentManager().beginTransaction()
+                    .replace(android.R.id.content, new Settings()).commit();
+        } catch (Throwable e) {
+            StartupErrorActivity.report(this, "PreferenceIME.onCreate", e);
+            finish();
+        }
     }
 
     public static class Settings extends PreferenceFragmentCompat {

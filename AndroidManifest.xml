@@ -35,6 +35,7 @@
             </intent-filter>
         </activity>
         <activity android:name=".SectionActivity" android:theme="@style/PrefsTheme" android:exported="false" />
+        <activity android:name=".StartupErrorActivity" android:theme="@style/PrefsTheme" android:exported="false" />
         <activity android:name=".SpeechEventsActivity" android:theme="@style/PrefsTheme" android:exported="false" />
         <activity android:name=".HapticEventsActivity" android:theme="@style/PrefsTheme" android:exported="false" />
         <activity android:name=".GesturesActivity" android:theme="@style/PrefsTheme" android:exported="false" />

@@ -49,10 +49,15 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-        InsetsHelper.apply(this);
-        updateUIStates();
+        try {
+            super.onCreate(savedInstanceState);
+            setContentView(R.layout.activity_main);
+            InsetsHelper.apply(this);
+            updateUIStates();
+        } catch (Throwable e) {
+            StartupErrorActivity.report(this, "MainActivity.onCreate", e);
+            finish();
+        }
     }
 
     // Called when we gain or lose focus.

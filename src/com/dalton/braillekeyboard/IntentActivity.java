@@ -39,20 +39,25 @@ public class IntentActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        Intent intent = getIntent();
-        if (getString(R.string.action_record_audio_permission).equals(
-                intent.getAction())) {
-            if (intent.getExtras() != null) {
-                // If the intent has extras indicating that we should show a
-                // dialog if the user declines the permission.
-                // This is normally only shown when the user is directly
-                // trying to use the permission i.e. not on first app launch
-                // request.
-                showRequirePermissionDialog = intent.getExtras().getBoolean(
-                        getString(R.string.require_record_audio_now));
+        try {
+            super.onCreate(savedInstanceState);
+            Intent intent = getIntent();
+            if (getString(R.string.action_record_audio_permission).equals(
+                    intent.getAction())) {
+                if (intent.getExtras() != null) {
+                    // If the intent has extras indicating that we should show a
+                    // dialog if the user declines the permission.
+                    // This is normally only shown when the user is directly
+                    // trying to use the permission i.e. not on first app launch
+                    // request.
+                    showRequirePermissionDialog = intent.getExtras().getBoolean(
+                            getString(R.string.require_record_audio_now));
+                }
+                askUserForRecordAudioPermission();
             }
-            askUserForRecordAudioPermission();
+        } catch (Throwable e) {
+            StartupErrorActivity.report(this, "IntentActivity.onCreate", e);
+            finish();
         }
     }
 
