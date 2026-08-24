@@ -122,6 +122,9 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
                         }
                     });
         }
+        // The keyboard came up cleanly, so any leftover crash notification
+        // from an earlier session is stale; take it out of the tray.
+        CrashGuard.cancelNotification(this);
     }
 
     @Override

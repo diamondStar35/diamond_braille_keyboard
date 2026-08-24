@@ -45,7 +45,7 @@ import android.os.Build;
 final class CrashGuard {
 
     private static final String CHANNEL_ID = "crash";
-    private static final int NOTIFICATION_ID = 1;
+    static final int CRASH_NOTIFICATION_ID = 1;
     private static volatile boolean installed;
 
     // During a crash loop (the system re-binding a crashing IME every few
@@ -103,6 +103,25 @@ final class CrashGuard {
         notifyCrash(app, report);
     }
 
+    /**
+     * Removes a stale crash notification, used once the keyboard started up
+     * cleanly: an old "startup error" has no business lingering in the tray
+     * while the phone is idle.
+     */
+    static void cancelNotification(Context context) {
+        try {
+            NotificationManager manager =
+                    (NotificationManager) context.getSystemService(
+                            Context.NOTIFICATION_SERVICE);
+            if (manager != null) {
+                manager.cancel(CRASH_NOTIFICATION_ID);
+            }
+        } catch (Throwable ignored) {
+            // Reporting must never be the thing that breaks the crash
+            // handling.
+        }
+    }
+
     private static void notifyCrash(Context app, String report) {
         try {
             NotificationManager manager =
@@ -125,17 +144,19 @@ final class CrashGuard {
                 // silently; the report is still logged and saved.
                 return;
             }
-            Intent intent = new Intent(app, StartupErrorActivity.class);
-            intent.putExtra(StartupErrorActivity.EXTRA_REPORT, report);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            Intent copyIntent = new Intent(app, CopyErrorReceiver.class);
+            copyIntent.putExtra(StartupErrorActivity.EXTRA_REPORT, report);
+            // The action copies the report directly from the notification;
+            // nothing has to open for that.
+            PendingIntent copyPending = PendingIntent.getBroadcast(app, 0,
+                    copyIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT
+                            | PendingIntent.FLAG_IMMUTABLE);
             long now = android.os.SystemClock.elapsedRealtime();
             if (now - lastNotifiedAt < 5000) {
                 return;
             }
             lastNotifiedAt = now;
-            PendingIntent pending = PendingIntent.getActivity(app, 0, intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT
-                            | PendingIntent.FLAG_IMMUTABLE);
             Notification.Builder builder =
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                             ? new Notification.Builder(app, CHANNEL_ID)
@@ -145,9 +166,12 @@ final class CrashGuard {
                             R.string.startup_error_title))
                     .setContentText(app.getString(
                             R.string.startup_error_message))
-                    .setContentIntent(pending)
+                    .addAction(new Notification.Action(
+                            R.drawable.ic_launcher,
+                            app.getString(R.string.startup_error_copy),
+                            copyPending))
                     .setAutoCancel(true);
-            manager.notify(NOTIFICATION_ID, builder.build());
+            manager.notify(CRASH_NOTIFICATION_ID, builder.build());
         } catch (Throwable ignored) {
             // Reporting must never be the thing that breaks the crash
             // handling.

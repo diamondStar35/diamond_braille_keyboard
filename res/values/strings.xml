@@ -201,6 +201,7 @@
     <string name="startup_error_title">Startup error</string>
     <string name="startup_error_message">The keyboard encountered an error. Please report this to the developer.</string>
     <string name="startup_error_close">Close</string>
+    <string name="startup_error_copy">Copy error</string>
     <string name="startup_error_no_details">No details are available for this error.</string>
     <string name="pref_echo_passwords_summary">When enabled the keyboard will speak during password input.</string>
     <string name="pref_keyboard_feedback_summary">Choose the type of haptic and sound keyboard feedback.</string>
