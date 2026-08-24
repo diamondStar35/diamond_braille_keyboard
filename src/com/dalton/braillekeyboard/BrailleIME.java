@@ -67,7 +67,7 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
      * {@link #getCurrentInputConnection}, saving repeated full-document
      * round-trips on the editing hot path.
      */
-    private final EditorGateway editor = new EditorGateway();
+    private final EditorGateway editor = new EditorGateway(this);
     private int cursor = -1;
     private int mark = -1;
     private boolean selectAll = false;
@@ -160,6 +160,12 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         // The editor state of the previous session says nothing about this
         // one; tracking resumes from the framework's next selection update.
         editor.invalidate();
+        // Trace the editor operations for this session when logging is on;
+        // this is how "who mutated what right before a flicker" gets
+        // answered from problem reports.
+        editor.setTraceEnabled(Diagnostics.isEnabled(this));
+        Diagnostics.log(this, "input started restarting=" + restarting
+                + describeEditor(info));
         // remove any existing selection.
         selectAll = false;
         mark = -1;
@@ -173,6 +179,21 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         // prevents duplication bugs in apps that don't handle composing spans
         // correctly (e.g. Chrome address bar, Star Taxi).
         textComposer.setPredictionOn(false);
+    }
+
+    /**
+     * Short identity of the connected editor: its object identity (changes
+     * when an app recreates the field), field id and initial selection.
+     * Used to tell apart "the app restarted input" from "the app replaced
+     * the focused box".
+     */
+    private static String describeEditor(EditorInfo info) {
+        if (info == null) {
+            return " editor=null";
+        }
+        return " editor@" + Integer.toHexString(System.identityHashCode(info))
+                + " field=" + info.fieldId
+                + " selStart=" + info.initialSelStart;
     }
 
     @Override
@@ -203,8 +224,14 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
                     + (info != null && info.packageName != null
                             ? info.packageName : "unknown")
                     + " inputType=0x" + Integer.toHexString(
-                            info != null ? info.inputType : 0));
+                            info != null ? info.inputType : 0)
+                    + describeEditor(info));
             Diagnostics.logDeviceInfo(this);
+        } else {
+            // Restarts used to be invisible in the logs, yet they are exactly
+            // what flicker reports hinge on: log every one of them.
+            Diagnostics.log(this, "keyboard view restarted"
+                    + describeEditor(info));
         }
         if (!restarting && brailleView != null) {
             // Tell the user the keyboard is ready, but only the first time it
@@ -278,7 +305,9 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
     @Override
     public void onFinishInputView(boolean finishingInput) {
         super.onFinishInputView(finishingInput);
-        Diagnostics.log(this, "keyboard hidden");
+        // finishingInput tells apart a real end of input from the app merely
+        // restarting it; that distinction is the core of flicker reports.
+        Diagnostics.log(this, "keyboard hidden finishing=" + finishingInput);
         // The keyboard window is gone, so TalkBack can handle the screen
         // normally again.
         AccessibilityService.setKeyboardPassthrough(false);
@@ -302,13 +331,16 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         super.onWindowHidden();
         // The keyboard window is really gone now (unlike onFinishInputView,
         // which also runs on mere input restarts), so take the full-screen
-        // overlay down with it.
+        // overlay down with it. Logged separately from the session events:
+        // flicker is a window-level symptom, restarts are session-level.
+        Diagnostics.log(this, "window hidden");
         KeyboardOverlayHost.removeOverlay();
     }
 
     @Override
     public void onWindowShown() {
         super.onWindowShown();
+        Diagnostics.log(this, "window shown");
         // A genuine show of the keyboard window; make sure the keyboard view
         // lives where the current configuration wants it.
         applyPlacement();

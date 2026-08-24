@@ -16,6 +16,7 @@
 
 package com.dalton.braillekeyboard;
 
+import android.content.Context;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.KeyEvent;
@@ -56,12 +57,32 @@ final class EditorGateway {
     /** Value of the tracked cursor while it is not known. */
     static final int UNKNOWN = -1;
 
+    private final Context context;
+    // Set from BrailleIME when diagnostic logging is on, so the trace below
+    // costs one boolean check per edit instead of building strings always.
+    private boolean traceEnabled;
+
     private InputConnection wrapped;
     private InputConnection wrappedFrom;
 
     private int cursor = UNKNOWN;
     private int selectionStart = UNKNOWN;
     private int selectionEnd = UNKNOWN;
+
+    EditorGateway(Context context) {
+        this.context = context;
+    }
+
+    /** Enables/disables the editor-operation trace for problem reports. */
+    void setTraceEnabled(boolean enabled) {
+        traceEnabled = enabled;
+    }
+
+    private void trace(String what) {
+        if (traceEnabled) {
+            Diagnostics.log(context, what);
+        }
+    }
 
     /**
      * Feed the latest selection reported by the editor (from
@@ -92,6 +113,7 @@ final class EditorGateway {
         if (cursor != UNKNOWN || ic == null) {
             return cursor;
         }
+        trace("ic:cursor pull (tracking missed)");
         ExtractedText extracted = ic.getExtractedText(new ExtractedTextRequest(),
                 0);
         if (extracted == null) {
@@ -184,6 +206,7 @@ final class EditorGateway {
         @Override
         public boolean deleteSurroundingText(int beforeLength,
                 int afterLength) {
+            trace("ic:del(" + beforeLength + ',' + afterLength + ')');
             boolean ok = delegate.deleteSurroundingText(beforeLength,
                     afterLength);
             if (ok) {
@@ -235,6 +258,7 @@ final class EditorGateway {
 
         @Override
         public boolean commitText(CharSequence text, int newCursorPosition) {
+            trace("ic:commit(len=" + (text == null ? -1 : text.length()) + ')');
             boolean ok = delegate.commitText(text, newCursorPosition);
             if (ok) {
                 onCommitted(text);
@@ -254,6 +278,7 @@ final class EditorGateway {
 
         @Override
         public boolean setSelection(int start, int end) {
+            trace("ic:sel(" + start + ',' + end + ')');
             boolean ok = delegate.setSelection(start, end);
             if (ok && start >= 0 && start == end) {
                 onSelected(start);
