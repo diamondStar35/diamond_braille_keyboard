@@ -48,6 +48,12 @@ final class CrashGuard {
     private static final int NOTIFICATION_ID = 1;
     private static volatile boolean installed;
 
+    // During a crash loop (the system re-binding a crashing IME every few
+    // hundred milliseconds) this keeps the notification from being re-posted
+    // on every single cycle; one standing notification carries the same
+    // information.
+    private static volatile long lastNotifiedAt;
+
     private CrashGuard() {
     }
 
@@ -122,6 +128,11 @@ final class CrashGuard {
             Intent intent = new Intent(app, StartupErrorActivity.class);
             intent.putExtra(StartupErrorActivity.EXTRA_REPORT, report);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            long now = android.os.SystemClock.elapsedRealtime();
+            if (now - lastNotifiedAt < 5000) {
+                return;
+            }
+            lastNotifiedAt = now;
             PendingIntent pending = PendingIntent.getActivity(app, 0, intent,
                     PendingIntent.FLAG_UPDATE_CURRENT
                             | PendingIntent.FLAG_IMMUTABLE);

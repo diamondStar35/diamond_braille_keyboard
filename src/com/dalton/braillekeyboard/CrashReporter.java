@@ -17,10 +17,11 @@
 package com.dalton.braillekeyboard;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -61,28 +62,55 @@ final class CrashReporter {
 
     /** Persists the report to the app's files directory. */
     static void save(Context context, String report) {
+        FileOutputStream out = null;
         try {
             File file = new File(context.createDeviceProtectedStorageContext()
                     .getFilesDir(), FILE_NAME);
-            Files.write(file.toPath(),
-                    report.getBytes(StandardCharsets.UTF_8));
+            // Plain java.io streams: java.nio.file.Files needs API 26 and
+            // this must run on every supported device (minSdk 24).
+            out = new FileOutputStream(file);
+            out.write(report.getBytes(StandardCharsets.UTF_8));
         } catch (Throwable ignored) {
             // Reporting must never be the thing that crashes.
+        } finally {
+            if (out != null) {
+                try {
+                    out.close();
+                } catch (Throwable ignored) {
+                }
+            }
         }
     }
 
     /** The last saved report, or null when there is none. */
     static String load(Context context) {
+        FileInputStream in = null;
         try {
             File file = new File(context.createDeviceProtectedStorageContext()
                     .getFilesDir(), FILE_NAME);
             if (!file.exists()) {
                 return null;
             }
-            return new String(Files.readAllBytes(file.toPath()),
-                    StandardCharsets.UTF_8);
+            in = new FileInputStream(file);
+            byte[] data = new byte[(int) file.length()];
+            int read = 0;
+            while (read < data.length) {
+                int n = in.read(data, read, data.length - read);
+                if (n < 0) {
+                    break;
+                }
+                read += n;
+            }
+            return new String(data, 0, read, StandardCharsets.UTF_8);
         } catch (Throwable ignored) {
             return null;
+        } finally {
+            if (in != null) {
+                try {
+                    in.close();
+                } catch (Throwable ignored) {
+                }
+            }
         }
     }
 }

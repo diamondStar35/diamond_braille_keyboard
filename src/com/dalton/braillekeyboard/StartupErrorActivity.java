@@ -47,6 +47,12 @@ public class StartupErrorActivity extends AppCompatActivity {
     /** Extra carrying the report text when the activity is launched. */
     static final String EXTRA_REPORT = "report";
 
+    // When crash loops run (an IME rebind storm, or an app the user keeps
+    // re-launching that fails every time), report() and this screen would
+    // otherwise stack dialogs and notifications every few milliseconds. The
+    // first failure always shows; rapid repeats are logged and saved only.
+    private static volatile long lastReportStartedAt;
+
     /**
      * Saves the crash and shows the error dialog instead of the failing
      * screen. Call from an entry activity's catch block; the failing
@@ -63,6 +69,16 @@ public class StartupErrorActivity extends AppCompatActivity {
         try {
             String reportText = CrashReporter.format(where, throwable);
             CrashReporter.save(failedActivity, reportText);
+            Diagnostics.logAlways(failedActivity,
+                    "startup failure in " + where + ": " + throwable);
+            long now = android.os.SystemClock.elapsedRealtime();
+            if (now - lastReportStartedAt < 1500) {
+                // A screen is already coming up for a near-simultaneous
+                // failure (or a crash loop is running); stacking more of
+                // them helps nobody. The log and saved file have it all.
+                return;
+            }
+            lastReportStartedAt = now;
             Intent intent = new Intent(failedActivity,
                     StartupErrorActivity.class);
             intent.putExtra(EXTRA_REPORT, reportText);
@@ -74,7 +90,28 @@ public class StartupErrorActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Tapping the crash notification may be the first thing that starts
+        // this process after a crash, so make sure the guard exists here too
+        // (idempotent).
+        CrashGuard.install(this);
         super.onCreate(savedInstanceState);
+        try {
+            buildUi();
+        } catch (Throwable e) {
+            // This screen must come up no matter what, even if its own
+            // setup fails; fall back to the most primitive view possible.
+            try {
+                TextView fallback = new TextView(this);
+                fallback.setText(R.string.startup_error_title);
+                setContentView(fallback);
+                setTitle(R.string.startup_error_title);
+            } catch (Throwable ignored) {
+                finish();
+            }
+        }
+    }
+
+    private void buildUi() {
 
         String report = getIntent() != null
                 ? getIntent().getStringExtra(EXTRA_REPORT) : null;
