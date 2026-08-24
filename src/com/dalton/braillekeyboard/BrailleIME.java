@@ -720,7 +720,13 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         textComposer.finishComposingText();
         switch (keyCode) {
         case Keyboard.KEYCODE_DELETE:
-            ic.deleteSurroundingText(1, 0);
+            // A hardware-style DEL key event instead of
+            // deleteSurroundingText: some apps (Telegram/Unigram) restart
+            // the whole input session when they see text mutated behind
+            // their back, which visibly cycled the keyboard window on every
+            // delete. Key events travel the app's normal backspace path and
+            // are handled by every editor.
+            keyDownUp(ic, KeyEvent.KEYCODE_DEL);
             break;
         case Keyboard.KEYCODE_DONE:
         case '\n':

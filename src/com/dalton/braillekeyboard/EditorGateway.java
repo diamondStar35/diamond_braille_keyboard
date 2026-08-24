@@ -311,7 +311,17 @@ final class EditorGateway {
 
         @Override
         public boolean sendKeyEvent(KeyEvent event) {
-            return delegate.sendKeyEvent(event);
+            trace("ic:key(" + event.getKeyCode() + ')');
+            boolean ok = delegate.sendKeyEvent(event);
+            // Key-event deletes bypass deleteSurroundingText, so mirror the
+            // cursor movement here to keep tracking aligned until the
+            // editor's next selection update arrives.
+            if (ok && event.getAction() == KeyEvent.ACTION_DOWN
+                    && event.getKeyCode() == KeyEvent.KEYCODE_DEL
+                    && cursor != UNKNOWN && cursor > 0) {
+                cursor--;
+            }
+            return ok;
         }
 
         @Override

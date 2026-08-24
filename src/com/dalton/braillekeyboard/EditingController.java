@@ -210,7 +210,10 @@ public class EditingController implements SpellCheckController.TextProvider {
             listener.finishComposingText();
             CharSequence deleted = listener.getTextBeforeCursor(1);
             if (deleted != null && deleted.length() > 0) {
-                listener.deleteSurroundingText(1, 0);
+                // Route through the DEL key event (see BrailleIME.onKey):
+                // direct deleteSurroundingText calls made some chat apps
+                // restart the input session, flickering the keyboard.
+                listener.onKey(android.inputmethodservice.Keyboard.KEYCODE_DELETE);
                 callback.onText(context.getString(R.string.deleted),
                         deleted.toString(), listener.isPasswordField());
                 return true;
