@@ -172,7 +172,9 @@ public class BrailleKeyboardView extends android.view.View
             speaker.speak(getContext().getString(R.string.closing_keyboard),
                     Speech.QUEUE_FLUSH);
         }
-        actionHandler.shutdown();
+        if (actionHandler != null) {
+            actionHandler.shutdown();
+        }
         applyLocale(Locale.getDefault(), false);
     }
 
@@ -579,6 +581,8 @@ public class BrailleKeyboardView extends android.view.View
 
     @Override
     public int dots() {
-        return listener.getDots();
+        // The pad can be laid out before an input session attached the IME
+        // listener; default to standard six-dot Braille until then.
+        return listener != null ? listener.getDots() : 6;
     }
 }

@@ -130,10 +130,19 @@ public class Parser {
      * @return The active BrailleType.
      */
     public BrailleType getBrailleType(Context context) {
-        int value = Integer.parseInt(sharedPref.getString(
+        String stored = sharedPref.getString(
                 context.getString(R.string.pref_braille_type_key),
-                context.getString(R.string.pref_braille_type_default)));
-        return BrailleType.valueOf(value);
+                context.getString(R.string.pref_braille_type_default));
+        BrailleType brailleType;
+        try {
+            brailleType = BrailleType.valueOf(Integer.parseInt(stored));
+        } catch (NumberFormatException e) {
+            // A corrupted or foreign value must never take the keyboard
+            // down; fall back to the default type.
+            brailleType = BrailleType.valueOf(Integer.parseInt(context
+                    .getString(R.string.pref_braille_type_default)));
+        }
+        return brailleType;
     }
 
     // Memoisation of getTable(Context). Resolving the active table sorts the
@@ -167,8 +176,9 @@ public class Parser {
 
         if (cachedTable != null
                 && cachedTableBrailleType == brailleType
-                && cachedTableActiveId.equals(activeId)
-                && cachedTableConfigured.equals(configured)) {
+                && java.util.Objects.equals(cachedTableActiveId, activeId)
+                && java.util.Objects.equals(cachedTableConfigured,
+                        configured)) {
             return cachedTable;
         }
 

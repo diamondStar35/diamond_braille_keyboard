@@ -53,16 +53,25 @@ final class KeyboardSpeaker {
 
     /** Speaks a string resource, flushing whatever was being said. */
     void speak(int stringRes) {
+        if (speech == null) {
+            return;
+        }
         speech.speak(context, context.getString(stringRes),
                 Speech.QUEUE_FLUSH);
     }
 
     void speak(int stringRes, int queueMode, Object... formatArgs) {
+        if (speech == null) {
+            return;
+        }
         speech.speak(context, context.getString(stringRes, formatArgs),
                 queueMode);
     }
 
     void speak(CharSequence text, int queueMode) {
+        if (speech == null) {
+            return;
+        }
         speech.speak(context, text, queueMode);
     }
 
@@ -72,11 +81,17 @@ final class KeyboardSpeaker {
      */
     void readConsiderPassword(String format, String text,
             boolean isPasswordField, int queueMode) {
+        if (speech == null) {
+            return;
+        }
         speech.readConsiderPassword(context, format, text, isPasswordField,
                 queueMode);
     }
 
     void stop() {
+        if (speech == null) {
+            return;
+        }
         speech.stop();
     }
 
@@ -92,7 +107,7 @@ final class KeyboardSpeaker {
      * set, the resources are left untouched so text and speech agree.
      */
     boolean applyLocale(Locale locale, boolean setTtsLocale) {
-        if (locale == null) {
+        if (locale == null || speech == null) {
             return false;
         }
         Resources resources = context.getResources();

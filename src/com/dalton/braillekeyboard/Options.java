@@ -42,6 +42,10 @@ public class Options {
     // exactly as before the cache existed.
     private static final ConcurrentHashMap<String, Object> hotValues =
             new ConcurrentHashMap<String, Object>();
+    // Stands in for a stored null: ConcurrentHashMap rejects null values,
+    // but several preferences are legitimately unset (e.g. the TTS engine
+    // choice defaults to null) and must stay cached as "known to be null".
+    private static final Object NULL_VALUE = new Object();
     private static final Object[] hotListenerLock = new Object[0];
     private static SharedPreferences.OnSharedPreferenceChangeListener
             hotListener;
@@ -264,9 +268,12 @@ public class Options {
         if (cached instanceof String) {
             return (String) cached;
         }
+        if (cached == NULL_VALUE) {
+            return null;
+        }
         String value = getSharedPreferences(context).getString(key,
                 defaultValue);
-        hotValues.put(key, value);
+        hotValues.put(key, value != null ? value : NULL_VALUE);
         return value;
     }
 
