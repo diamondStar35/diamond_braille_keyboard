@@ -5,12 +5,12 @@ import android.content.Context;
 /**
  * Represents keyboard events that can trigger sound and haptic feedback.
  *
- * <p>Each event knows the key used to refer to it in a theme's config.ini
- * [sounds] section, so the mapping between events and theme entries lives in
- * one place. Each event also carries its haptic configuration: the default
- * vibration length and the preference that lets the user enable or disable
- * the vibration for that event in the "Haptic feedback events" settings
- * screen.
+ * <p>Each event knows the key used to refer to it in the "sounds" object of
+ * a theme's config.json manifest, so the mapping between events and theme
+ * entries lives in one place. Each event also carries its haptic
+ * configuration: the default vibration length and the preference that lets
+ * the user enable or disable the vibration for that event in the "Haptic
+ * feedback events" settings screen.
  */
 public enum FeedbackEvent {
     OPEN("open", 50,
@@ -52,7 +52,7 @@ public enum FeedbackEvent {
             R.string.pref_haptic_event_commands_title,
             R.string.pref_haptic_event_commands_summary, true);
 
-    /** The key used for this event in a theme's config.ini [sounds] section. */
+    /** The key naming this event in a theme manifest's "sounds" object. */
     public final String configKey;
 
     /** The default vibration length for this event, in milliseconds. */
@@ -88,7 +88,7 @@ public enum FeedbackEvent {
     }
 
     /**
-     * Look up the event for a config.ini key, or {@code null} if the key is
+     * Look up the event for a manifest key, or {@code null} if the key is
      * not a known event.
      */
     public static FeedbackEvent fromConfigKey(String key) {

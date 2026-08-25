@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "id": "theme_4",
+  "name": "Theme 4",
+  "author": "ABK",
+  "version": "1.0",
+  "sounds": {
+    "open": "open.ogg",
+    "close": "close.ogg",
+    "type": "type.ogg",
+    "type_upper": "type_uppercase.ogg",
+    "delete": "system",
+    "new_line": "type_new_line.ogg",
+    "calibrate": "calibrated.ogg",
+    "misspelling": "none",
+    "command": "type.ogg"
+  }
+}

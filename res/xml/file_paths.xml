@@ -6,4 +6,7 @@
          the second root silently replace the first. -->
     <external-files-path name="external_logs" path="." />
     <files-path name="internal_logs" path="." />
+    <!-- Sound themes are zipped into the cache before being handed to the
+         share sheet; nothing else in the cache is exposed. -->
+    <cache-path name="shared_themes" path="shared_themes/" />
 </paths>

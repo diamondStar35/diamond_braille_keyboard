@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The title bar actions. Both carry their titles rather than icons: there is
+  no icon that reads unambiguously as "import a sound theme", and a labelled
+  action is what a screen reader announces usefully.
+-->
+<menu xmlns:android="http://schemas.android.com/apk/res/android" >
+
+    <item
+        android:id="@+id/action_new_theme"
+        android:orderInCategory="100"
+        android:showAsAction="ifRoom|withText"
+        android:title="@string/theme_manager_new"/>
+
+    <item
+        android:id="@+id/action_import_theme"
+        android:orderInCategory="200"
+        android:showAsAction="ifRoom|withText"
+        android:title="@string/theme_manager_import"/>
+
+</menu>

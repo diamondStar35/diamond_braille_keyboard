@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "id": "system_default",
+  "name": "System Default",
+  "author": "ABK",
+  "version": "1.0",
+  "sounds": {
+    "open": "none",
+    "close": "none",
+    "type": "system",
+    "type_upper": "system",
+    "delete": "system",
+    "new_line": "system",
+    "calibrate": "none",
+    "misspelling": "none",
+    "command": "system"
+  }
+}

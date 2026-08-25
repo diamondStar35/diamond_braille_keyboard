@@ -154,6 +154,8 @@ public class MainActivity extends AppCompatActivity {
             startActivity(intent);
         } else if (id == R.id.action_abbreviation_editor) {
             startActivity(new Intent(this, AbbreviationEditorActivity.class));
+        } else if (id == R.id.action_sound_theme_manager) {
+            startActivity(new Intent(this, SoundThemeManagerActivity.class));
         } else if (id == R.id.action_share_logs) {
             shareLogs();
             return true;

@@ -1,13 +1,11 @@
 package com.dalton.braillekeyboard;
 
 import android.content.Context;
-import android.content.res.AssetManager;
 import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.SoundPool;
 import android.util.Log;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -40,6 +38,11 @@ public class SoundThemeManager {
 
     private SoundPool soundPool;
     private SoundTheme activeTheme;
+    // The library epoch the loaded samples were read at. Compared alongside
+    // the theme id so an edit to the active theme - which does not change
+    // its id - still reaches the pool. Starts below every real epoch so the
+    // first reload always loads.
+    private int loadedEpoch = -1;
 
     public SoundThemeManager(Context context) {
         this.context = context.getApplicationContext();
@@ -81,13 +84,19 @@ public class SoundThemeManager {
                 context.getString(R.string.pref_sound_theme_default));
         SoundTheme theme = SoundTheme.ID_OFF.equalsIgnoreCase(stored) ? null
                 : SoundTheme.loadById(context, stored);
+        int epoch = ThemeLibrary.epoch();
         // Avoid unloading and reloading a theme that is already active; this
-        // is the common case when the keyboard opens.
+        // is the common case when the keyboard opens. The epoch has to be
+        // part of the test: editing the active theme leaves its id alone, so
+        // an id-only check would keep playing the samples loaded before the
+        // edit with nothing to show the user why.
         if (activeTheme != null && theme != null
-                && activeTheme.id.equalsIgnoreCase(theme.id)) {
+                && activeTheme.id.equalsIgnoreCase(theme.id)
+                && loadedEpoch == epoch) {
             return;
         }
         setActiveTheme(theme);
+        loadedEpoch = epoch;
     }
 
     private void setActiveTheme(SoundTheme theme) {
@@ -96,20 +105,23 @@ public class SoundThemeManager {
         if (theme == null) {
             return;
         }
-        AssetManager assets = context.getAssets();
-        String themePath = "sounds/" + theme.folderName;
+        // Built-in themes load from the assets and installed ones from their
+        // own directory; the source hides which, so this loop is the same
+        // either way.
+        SampleSource source = theme.sampleSource(context);
         for (FeedbackEvent event : FeedbackEvent.values()) {
-            String file = theme.getSound(event);
-            if (file == null || SoundTheme.SOUND_NONE.equalsIgnoreCase(file)
-                    || SoundTheme.SOUND_SYSTEM.equalsIgnoreCase(file)) {
+            String reference = theme.getSound(event);
+            if (reference == null
+                    || SoundTheme.SOUND_NONE.equalsIgnoreCase(reference)
+                    || SoundTheme.SOUND_SYSTEM.equalsIgnoreCase(reference)) {
                 continue;
             }
-            try {
-                int soundId = soundPool.load(
-                        assets.openFd(themePath + "/" + file), 1);
+            int soundId = source.load(soundPool, reference);
+            if (soundId != 0) {
                 soundIds.put(event, soundId);
-            } catch (IOException e) {
-                Log.e(TAG, "Failed to load sound " + file + " for " + event, e);
+            } else {
+                Log.e(TAG, "Failed to load sound " + reference + " for "
+                        + event);
             }
         }
     }

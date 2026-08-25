@@ -272,6 +272,53 @@
     <string name="settings_imported">Settings imported successfully.</string>
     <string name="settings_import_failed">Could not import the settings. The file is not a valid settings file.</string>
     <string name="settings_backup_no_file_app">No app on this device can pick files.</string>
+
+    <!-- Sound theme manager. -->
+    <string name="theme_manager_title">Sound theme manager</string>
+    <string name="theme_manager_new">New sound theme</string>
+    <string name="theme_manager_import">Import</string>
+    <string name="theme_manager_empty">No sound themes found.</string>
+    <string name="theme_detail_builtin">Built-in</string>
+    <string name="theme_detail_custom">Custom</string>
+    <string name="theme_detail_active">In use</string>
+    <string name="theme_selected">Now using \"%s\".</string>
+    <string name="theme_action_edit">Edit</string>
+    <string name="theme_action_delete">Delete</string>
+    <string name="theme_action_export">Export</string>
+    <string name="theme_action_share">Share</string>
+    <string name="theme_action_info">Info</string>
+    <string name="theme_not_implemented">The sound theme editor is not available yet.</string>
+    <string name="theme_delete_title">Delete sound theme</string>
+    <string name="theme_delete_message">Delete \"%s\"? This cannot be undone.</string>
+    <string name="theme_deleted">Sound theme deleted.</string>
+    <string name="theme_delete_failed">Could not delete the sound theme.</string>
+    <string name="theme_info_title">Sound theme</string>
+    <string name="theme_info_name">Name:</string>
+    <string name="theme_info_version">Version:</string>
+    <string name="theme_info_author">Author:</string>
+    <string name="theme_info_close">Close</string>
+    <string name="theme_share_subject">Sound theme: %s</string>
+    <string name="theme_share_failed">Could not share the sound theme.</string>
+
+    <!-- Sound theme import, export and copying. -->
+    <string name="theme_imported">Sound theme \"%s\" installed.</string>
+    <string name="theme_exported">Sound theme exported.</string>
+    <string name="theme_copy_name">%s (copy)</string>
+    <string name="pref_version_unknown">unknown</string>
+    <string name="theme_copy_failed">Could not copy the sound theme.</string>
+    <string name="theme_export_failed">Could not export the sound theme. The file could not be written.</string>
+    <string name="theme_import_failed_not_a_theme">That file is not a sound theme.</string>
+    <string name="theme_import_failed_damaged">That sound theme file is damaged and could not be read.</string>
+    <string name="theme_import_failed_large">That file is too large to be a sound theme.</string>
+    <string name="theme_import_failed_missing_sound">That sound theme is incomplete: one of its sounds is missing.</string>
+    <string name="theme_import_failed_bad_sound">That sound theme contains a file that is not playable audio.</string>
+    <string name="theme_import_failed_sound_too_long">That sound theme contains a sound that is too long. Keyboard sounds must be under ten seconds.</string>
+    <string name="theme_import_failed_reserved">That sound theme uses the name of a built-in theme and cannot be installed.</string>
+    <string name="theme_import_failed_storage">Could not install the sound theme. There may not be enough space.</string>
+    <string name="theme_collision_title">Theme already installed</string>
+    <string name="theme_collision_message">You already have a sound theme called \"%1$s\" (version %2$s). The file you picked is version %3$s.</string>
+    <string name="theme_collision_replace">Replace it</string>
+    <string name="theme_collision_keep_both">Keep both</string>
     <string name="action_share_logs">Share logs</string>
     <string name="no_log_file">No log file found yet. Enable logging in the settings and use the keyboard first, then share the logs.</string>
     <string name="share_logs_failed">Could not share the log file.</string>
