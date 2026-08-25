@@ -37,5 +37,8 @@
              android:key="@string/pref_category_misc_key"
              android:title="@string/pref_category_misc_title" />
          <Preference
+             android:key="@string/pref_category_backup_key"
+             android:title="@string/pref_category_backup_title" />
+         <Preference
          android:key="@string/pref_app_version_key" />
 </PreferenceScreen>

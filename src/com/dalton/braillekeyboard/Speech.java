@@ -16,24 +16,37 @@
 
 package com.dalton.braillekeyboard;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import android.annotation.SuppressLint;
 import android.content.Context;
+import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.AudioManager.OnAudioFocusChangeListener;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
+import android.text.TextUtils;
 
 /**
  * Allows the Braille IME to interface with the Android TTS service. This class
  * provides a lot of helper methods that help speak messages in text in the
  * appropriate format at the right times according to local app settings. It
  * ultimately saves a lot of code duplication.
- * 
+ *
+ * <p>One instance owns one engine for its whole life. The engine itself is
+ * replaceable through {@link #ensureFresh}, which starts a replacement
+ * asynchronously and only swaps it in once it reports ready, so callers can
+ * keep a {@code final} reference to this object forever and never end up
+ * holding a wrapper whose engine died. Utterances requested while an engine is
+ * still starting up are queued and spoken the moment it becomes ready rather
+ * than dropped.
+ *
  * You should always call shutdown() when you are finished with the service.
  */
 public class Speech {
@@ -57,12 +70,52 @@ public class Speech {
 
     private static final int MAX_SPEECH_LENGTH = 3900;
     private static final String SHUTDOWN_ID = "SHUTDOWN";
-    private static TextToSpeech tts;
+    // Announcements queued while an engine starts up. Bounded so a TTS engine
+    // that never becomes ready cannot grow the queue without limit; when it
+    // does become ready the user hears recent speech, not a backlog.
+    private static final int MAX_PENDING_UTTERANCES = 8;
 
+    /** One utterance held back until an engine is ready to speak it. */
+    private static final class PendingUtterance {
+        final String text;
+        final int queueMode;
+        final HashMap<String, String> params;
+        final String id;
+
+        PendingUtterance(String text, int queueMode,
+                HashMap<String, String> params, String id) {
+            this.text = text;
+            this.queueMode = queueMode;
+            this.params = params;
+            this.id = id;
+        }
+    }
+
+    private final Context appContext;
     private final AudioManager audioManager;
-    private final boolean useAccessibilityVolume;
     private final Map<String, String> speechMap = new HashMap<String, String>();
-    @SuppressLint("NewApi")
+    // Callbacks from the TTS service arrive on binder threads; every mutation
+    // of the engine state is funnelled onto the main thread through this so
+    // the fields below need no locking.
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final List<PendingUtterance> pending =
+            new ArrayList<PendingUtterance>();
+
+    // The engine currently able to speak, or null while none is ready.
+    private TextToSpeech tts;
+    // An engine that is still starting up, or null when none is in flight.
+    // Held so it can be shut down if this instance is disposed of before its
+    // initialisation completes.
+    private TextToSpeech starting;
+    // The settings the live (or starting) engine was built from; a change of
+    // these is what makes an engine stale.
+    private String engineName;
+    private boolean useAccessibilityVolume;
+    // The locale last applied successfully, reapplied to any replacement
+    // engine so a language switch survives the swap.
+    private Locale locale;
+    private boolean disposed;
+
     private final UtteranceProgressListener progressListener = new UtteranceProgressListener() {
 
         @Override
@@ -78,10 +131,18 @@ public class Speech {
         }
 
         @Override
-        public void onDone(String utteranceId) {
+        public void onDone(final String utteranceId) {
             audioManager.abandonAudioFocus(audioFocusChangeListener);
             if (SHUTDOWN_ID.equals(utteranceId)) {
-                doShutdown();
+                // Runs on a binder thread; engine state is only ever touched
+                // on the main thread.
+                handler.post(new Runnable() {
+
+                    @Override
+                    public void run() {
+                        dispose();
+                    }
+                });
             }
         }
     };
@@ -96,12 +157,10 @@ public class Speech {
         }
     };
 
-    private boolean canSpeak;
-
     /**
      * Construct a Speech instance for integration with the Android tts service
      * and various helper methods specific for SBK.
-     * 
+     *
      * @param context
      *            The application context.
      * @param listener
@@ -109,90 +168,201 @@ public class Speech {
      *            ready for use.
      */
     public Speech(final Context context, final OnReadyListener listener) {
-        audioManager = (AudioManager) context
+        appContext = context.getApplicationContext() != null
+                ? context.getApplicationContext() : context;
+        audioManager = (AudioManager) appContext
                 .getSystemService(Context.AUDIO_SERVICE);
-
-        useAccessibilityVolume = Options.getBooleanPreference(context,
-                R.string.pref_use_accessibility_volume_key, false);
 
         // Some symbols are not spoken natively by TTS engines, so add them into
         // the map from strings.xml
         setSpeechMap(context, speechMap);
 
-        String engine = Options.getStringPreference(context,
-                R.string.pref_text_to_speech_engine_key, null);
-
-        if (canSpeak || tts != null) {
-            doShutdown();
-        }
-
-        // Keep a local reference to the engine being initialised: onInit
-        // runs asynchronously, and shutdown() may have cleared or replaced
-        // the static tts field by the time it fires (for example when the
-        // user presses Home while the TTS engine is still starting up). Only
-        // configure the engine when it is still the current one.
-        final TextToSpeech[] engineRef = new TextToSpeech[1];
-        engineRef[0] = new TextToSpeech(context,
-                new TextToSpeech.OnInitListener() {
-                    @SuppressLint("NewApi")
-                    @Override
-                    public void onInit(int status) {
-                        if (status == TextToSpeech.SUCCESS
-                                && engineRef[0] == tts) {
-                            if (android.os.Build.VERSION.SDK_INT
-                                    >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                                int usage = useAccessibilityVolume
-                                        ? android.media.AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY
-                                        : android.media.AudioAttributes.USAGE_MEDIA;
-                                android.media.AudioAttributes audioAttributes =
-                                        new android.media.AudioAttributes.Builder()
-                                                .setUsage(usage)
-                                                .setContentType(
-                                                        android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
-                                                .build();
-                                engineRef[0].setAudioAttributes(audioAttributes);
-                            }
-                            canSpeak = true;
-                            setProgressListener();
-                            listener.ttsReady();
-                        }
-                    }
-                }, engine);
-        tts = engineRef[0];
+        startEngine(listener);
     }
 
-    @SuppressLint("NewApi")
-    private void setProgressListener() {
-        if (tts != null && canSpeak) {
-            tts.setOnUtteranceProgressListener(progressListener);
+    /**
+     * Starts a fresh engine if the settings it would be built from changed, or
+     * if no engine is alive to speak with. The replacement initialises in the
+     * background and only takes over once it reports ready, so the current
+     * engine - if there is one - keeps speaking in the meantime and the
+     * keyboard is never left holding a dead one.
+     *
+     * <p>Call this at the points where a new engine is worth having, typically
+     * when the keyboard opens. It is cheap and does nothing when the live
+     * engine already matches the settings.
+     *
+     * @param context
+     *            The application context.
+     */
+    public void ensureFresh(Context context) {
+        if (disposed || starting != null) {
+            // Either this instance is finished with, or a replacement is
+            // already on its way; a second one would only race the first.
+            return;
         }
+        if (tts != null && matchesSettings(context)) {
+            return;
+        }
+        Diagnostics.log(context, "starting a fresh speech engine (live="
+                + (tts != null) + ")");
+        startEngine(null);
+    }
+
+    // Do the settings the live engine was built from still match the ones
+    // configured now?
+    private boolean matchesSettings(Context context) {
+        return TextUtils.equals(engineName, Options.getStringPreference(context,
+                R.string.pref_text_to_speech_engine_key, null))
+                && useAccessibilityVolume == Options.getBooleanPreference(
+                        context, R.string.pref_use_accessibility_volume_key,
+                        false);
+    }
+
+    // Build an engine from the current settings. The engine object is handed
+    // to the ready callback through a holder rather than read back from a
+    // field: onInit can fire before the TextToSpeech constructor has even
+    // returned, and an engine that arrived "too early" used to be discarded,
+    // leaving the keyboard permanently silent.
+    private void startEngine(final OnReadyListener listener) {
+        final boolean accessibilityVolume = Options.getBooleanPreference(
+                appContext, R.string.pref_use_accessibility_volume_key, false);
+        final String engine = Options.getStringPreference(appContext,
+                R.string.pref_text_to_speech_engine_key, null);
+        final TextToSpeech[] holder = new TextToSpeech[1];
+        holder[0] = new TextToSpeech(appContext,
+                new TextToSpeech.OnInitListener() {
+
+                    @Override
+                    public void onInit(final int status) {
+                        // Hop to the main thread: by the time this runs the
+                        // constructor above has returned, so holder[0] is set
+                        // whichever thread the service called back on.
+                        handler.post(new Runnable() {
+
+                            @Override
+                            public void run() {
+                                onEngineInit(status, holder[0], engine,
+                                        accessibilityVolume, listener);
+                            }
+                        });
+                    }
+                }, engine);
+        starting = holder[0];
+    }
+
+    // Adopt a newly initialised engine, or drop it if it failed or is no
+    // longer wanted. Always runs on the main thread.
+    private void onEngineInit(int status, TextToSpeech engine,
+            String newEngineName, boolean accessibilityVolume,
+            OnReadyListener listener) {
+        if (engine != starting) {
+            // Superseded while starting up; it is nobody's engine now.
+            engine.shutdown();
+            return;
+        }
+        starting = null;
+        if (status != TextToSpeech.SUCCESS || disposed) {
+            engine.shutdown();
+            if (status != TextToSpeech.SUCCESS) {
+                Diagnostics.log(appContext,
+                        "speech engine failed to initialise status=" + status);
+                pending.clear();
+            }
+            return;
+        }
+
+        // The engine this one replaces has had its turn; releasing it here
+        // rather than up front is what keeps speech continuous across a
+        // settings change.
+        if (tts != null) {
+            tts.stop();
+            tts.shutdown();
+        }
+        tts = engine;
+        engineName = newEngineName;
+        useAccessibilityVolume = accessibilityVolume;
+
+        AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                .setUsage(accessibilityVolume
+                        ? AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY
+                        : AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build();
+        engine.setAudioAttributes(audioAttributes);
+        engine.setOnUtteranceProgressListener(progressListener);
+        if (locale != null) {
+            setLocale(locale);
+        }
+
+        // Whether speech is alive was invisible in problem reports, which is
+        // exactly the question a "the keyboard went silent" report asks.
+        Diagnostics.log(appContext, "speech engine ready engine="
+                + (newEngineName != null ? newEngineName : "system default")
+                + " accessibilityVolume=" + accessibilityVolume
+                + " queued=" + pending.size());
+        speakPending();
+        if (listener != null) {
+            listener.ttsReady();
+        }
+    }
+
+    // Speak whatever was asked for while the engine was starting up.
+    private void speakPending() {
+        if (pending.isEmpty()) {
+            return;
+        }
+        List<PendingUtterance> queued =
+                new ArrayList<PendingUtterance>(pending);
+        pending.clear();
+        for (PendingUtterance utterance : queued) {
+            ttsSpeak(utterance.text, utterance.queueMode, utterance.params,
+                    utterance.id);
+        }
+    }
+
+    // Hold an utterance until an engine is ready for it, honouring the
+    // queueing mode the caller asked for: a flush drops what was waiting, in
+    // the same way it would have interrupted speech already in progress.
+    private void enqueue(String text, int queueMode,
+            HashMap<String, String> params, String id) {
+        if (queueMode == QUEUE_FLUSH) {
+            pending.clear();
+        } else if (pending.size() >= MAX_PENDING_UTTERANCES) {
+            pending.remove(0);
+        }
+        pending.add(new PendingUtterance(text, queueMode, params, id));
     }
 
     /**
      * Releases the android tts resources. You should always call this method
      * when you are finished with the service.
-     * 
+     *
      * @param message
      *            The message to be spoken on shutdown if any.
      */
     public void shutdown(String message) {
-        if (tts != null) {
-            if (message != null) {
-                ttsSpeak(message, QUEUE_FLUSH, null, SHUTDOWN_ID);
-            } else {
-                doShutdown();
-            }
+        if (message != null && tts != null) {
+            // dispose() follows from the utterance's onDone callback.
+            ttsSpeak(message, QUEUE_FLUSH, null, SHUTDOWN_ID);
+        } else {
+            dispose();
         }
     }
 
-    private void doShutdown() {
-        if (tts != null && canSpeak) {
+    // Release both the live engine and any replacement still starting up.
+    // This instance speaks no more afterwards.
+    private void dispose() {
+        disposed = true;
+        pending.clear();
+        if (tts != null) {
             tts.stop();
-            setLocale(Locale.getDefault());
             tts.shutdown();
-            canSpeak = false;
+            tts = null;
         }
-        tts = null;
+        if (starting != null) {
+            starting.shutdown();
+            starting = null;
+        }
     }
 
     /**
@@ -316,20 +486,19 @@ public class Speech {
      *         engine does not support the locale.
      */
     public boolean setLocale(Locale locale) {
-        // Somehow tts can be null while canSpeak is true.
-        // TODO This is really a work around, but the state that causes this
-        // should be fully understood and canSpeak's state should be updated
-        // accordingly.
         if (tts != null
-                && canSpeak
                 && tts.isLanguageAvailable(locale) >= TextToSpeech.LANG_AVAILABLE) {
             tts.setLanguage(locale);
+            // Remembered so a replacement engine starts in the same language
+            // instead of falling back to the system default.
+            this.locale = locale;
             return true;
         }
         return false;
     }
 
     public void stop() {
+        pending.clear();
         if (tts != null) {
             tts.stop();
         }
@@ -343,25 +512,28 @@ public class Speech {
                 .length();
         end = getBestEnd(text, end);
 
-        if (canSpeak) {
-            ttsSpeak(text.substring(0, end), queueMode, params, null);
-        }
+        ttsSpeak(text.substring(0, end), queueMode, params, null);
 
         for (int i = end; i < text.length(); i += MAX_SPEECH_LENGTH) {
             end = (i + MAX_SPEECH_LENGTH) < text.length() ? (i + MAX_SPEECH_LENGTH)
                     : text.length();
             end = getBestEnd(text, end);
 
-            if (canSpeak) {
-                ttsSpeak(text.substring(i, end), QUEUE_ADD, null, null);
-            }
+            ttsSpeak(text.substring(i, end), QUEUE_ADD, null, null);
         }
     }
 
-    @SuppressLint("NewApi")
     private void ttsSpeak(String text, int queueMode,
             HashMap<String, String> params, String id) {
-        if (!canSpeak || tts == null) {
+        if (disposed) {
+            return;
+        }
+        if (tts == null) {
+            // No engine yet: hold on to the utterance instead of dropping it,
+            // otherwise everything said in the moment before the engine
+            // finishes starting up - the keyboard's own "ready" announcement
+            // included - is lost silently.
+            enqueue(text, queueMode, params, id);
             return;
         }
 

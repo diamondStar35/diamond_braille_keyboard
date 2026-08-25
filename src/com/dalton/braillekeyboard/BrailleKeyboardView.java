@@ -142,8 +142,9 @@ public class BrailleKeyboardView extends android.view.View
         // translator-ready callback applies it again a moment later.
         applyLocale(listener.getLocale());
         if (SpeechEvent.KEYBOARD_SHOWN.isEnabled(getContext())) {
-            // speak() is self-gating: it stays silent while the engine is
-            // still starting up instead of queueing into nothing.
+            // Safe to say at any point in the engine's life: an announcement
+            // made while one is still starting up is held and spoken as soon
+            // as it is ready, rather than dropped.
             speaker.speak(getContext().getString(R.string.ready),
                     Speech.QUEUE_FLUSH);
         }
@@ -475,14 +476,6 @@ public class BrailleKeyboardView extends android.view.View
     /** Switches the process resources (and optionally TTS) to the locale. */
     public boolean applyLocale(Locale locale) {
         return applyLocale(locale, true);
-    }
-
-    /**
-     * Attaches a replacement shared speech instance after the user changed
-     * a speech-related preference, so the change applies immediately.
-     */
-    public void attachSpeech(Speech speech) {
-        speaker.attach(speech);
     }
 
     private boolean applyLocale(Locale locale, boolean setTtsLocale) {

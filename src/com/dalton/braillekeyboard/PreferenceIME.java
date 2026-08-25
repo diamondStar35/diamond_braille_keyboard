@@ -67,6 +67,8 @@ public class PreferenceIME extends AppCompatActivity {
                     SectionActivity.SECTION_TEXT_TO_SPEECH);
             openSection(R.string.pref_category_misc_key,
                     SectionActivity.SECTION_MISC);
+            openSection(R.string.pref_category_backup_key,
+                    SectionActivity.SECTION_BACKUP);
 
             Preference preference = findPreference(getActivity().getString(
                     R.string.pref_app_version_key));

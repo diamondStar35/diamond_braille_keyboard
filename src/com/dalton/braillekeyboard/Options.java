@@ -107,6 +107,21 @@ public class Options {
         return prefs;
     }
 
+    /**
+     * Drops everything remembered about the stored preferences, so the next
+     * read goes back to storage and any one-shot migration runs again.
+     *
+     * <p>Needed after the whole preference file is replaced wholesale - a
+     * settings restore - rather than changed a key at a time. The hot cache
+     * would be cleared by the change listener anyway, but the legacy table
+     * migration has already run for this process and a restored file can
+     * carry values from before that migration.
+     */
+    public static void invalidateCaches() {
+        hotValues.clear();
+        tableMigrationAttempted = false;
+    }
+
     // The literary and computer Braille table preferences used to be stored
     // as a single string (the old single table choice) but are now stored as
     // a string set (multi-select).  The settings screen reads them through a

@@ -21,7 +21,6 @@ import java.util.Locale;
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.inputmethodservice.InputMethodService;
 import android.inputmethodservice.Keyboard;
@@ -62,26 +61,6 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
     private final TextComposer textComposer = new TextComposer(this);
     /** The one process-wide speech instance, shared with the view and both engines. */
     private Speech sharedSpeech;
-    // Rebuilds the speech engine when a speech-related preference changes,
-    // so engine and accessibility-volume choices apply without restarting
-    // the phone.
-    private final SharedPreferences.OnSharedPreferenceChangeListener
-            speechPrefListener =
-            new SharedPreferences.OnSharedPreferenceChangeListener() {
-                @Override
-                public void onSharedPreferenceChanged(
-                        SharedPreferences sharedPreferences, String key) {
-                    if (key == null) {
-                        return;
-                    }
-                    if (key.equals(getString(
-                            R.string.pref_text_to_speech_engine_key))
-                            || key.equals(getString(
-                                    R.string.pref_use_accessibility_volume_key))) {
-                        rebuildSpeech();
-                    }
-                }
-            };
     /**
      * The single access point to the editor: tracks the cursor through
      * {@link #onUpdateSelection} and through every write issued via
@@ -117,15 +96,14 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         // included - so they land in the shareable log and raise a
         // notification even when the user never opens the app.
         CrashGuard.install(this);
-        // One speech instance for the whole process: Speech keeps a single
-        // static TTS engine, and each new Speech constructor replaces it with
-        // a freshly-initialising engine. Any wrapper whose engine got
-        // replaced before its asynchronous initialisation finished lost its
-        // ready state permanently and fell silent (this silenced emoji and
-        // command-mode announcements whenever the keyboard opened before the
-        // engine finished starting up). Creating it once here, sharing it
-        // with the view and both engines, and never replacing it keeps every
-        // wrapper valid for the life of the process.
+        // One speech instance for the whole process, shared with the view and
+        // both engines and never replaced: every component keeps a reference
+        // to it for the life of the service. The engine underneath it is what
+        // gets replaced, from ensureFresh() when the keyboard opens, so a
+        // changed TTS setting or an engine that died takes effect without any
+        // wrapper here going stale. Replacing the wrapper instead - which is
+        // what a preference listener used to do - left whichever component
+        // still held the old one permanently silent.
         sharedSpeech = new Speech(this, new Speech.OnReadyListener() {
             @Override
             public void ttsReady() {
@@ -133,8 +111,6 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         });
         emojiEngine = new EmojiEngine(this, this, sharedSpeech);
         commandModeEngine = new CommandModeEngine(this, this, sharedSpeech);
-        Options.getSharedPreferences(this)
-                .registerOnSharedPreferenceChangeListener(speechPrefListener);
         if (brailleParser == null) {
             brailleParser = new Parser(this,
                     new Parser.Listener() {
@@ -247,6 +223,14 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         // the keyboard so it receives raw touches and gestures even with
         // TalkBack turned on (see AccessibilityService).
         AccessibilityService.setKeyboardPassthrough(true);
+        if (!restarting && sharedSpeech != null) {
+            // Opening the keyboard is where a new engine is worth having: it
+            // picks up a changed TTS engine or accessibility-volume setting,
+            // and revives speech if the engine died or never came up while
+            // the keyboard was away. The replacement starts in the background
+            // and only takes over once ready, so nothing said below is lost.
+            sharedSpeech.ensureFresh(this);
+        }
         if (!restarting) {
             // The first show for this input field is the most useful place to
             // record the device and keyboard state for problem reports.
@@ -376,25 +360,6 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         applyPlacement();
     }
 
-    /**
-     * Replaces the shared speech instance with a freshly-initialising one.
-     * Called when a speech-related preference changes so the new engine or
-     * audio-attributes take effect immediately. The view and both engines
-     * follow the static engine at call time, so reattaching the view is the
-     * only extra work needed.
-     */
-    private void rebuildSpeech() {
-        Diagnostics.log(this, "rebuilding speech for changed settings");
-        sharedSpeech = new Speech(this, new Speech.OnReadyListener() {
-            @Override
-            public void ttsReady() {
-            }
-        });
-        if (brailleView != null) {
-            brailleView.attachSpeech(sharedSpeech);
-        }
-    }
-
     @Override
     public void onDestroy() {
         super.onDestroy();
@@ -402,8 +367,6 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         AccessibilityService.setKeyboardPassthrough(false);
         // Nor under a stale full-screen keyboard overlay.
         KeyboardOverlayHost.removeOverlay();
-        Options.getSharedPreferences(this)
-                .unregisterOnSharedPreferenceChangeListener(speechPrefListener);
         if (sharedSpeech != null) {
             sharedSpeech.shutdown(null);
             sharedSpeech = null;

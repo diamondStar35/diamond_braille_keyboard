@@ -24,12 +24,19 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.TextToSpeech.EngineInfo;
 
+import androidx.activity.result.ActivityResultCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.preference.CheckBoxPreference;
 import androidx.preference.ListPreference;
@@ -61,6 +68,7 @@ public class SectionActivity extends AppCompatActivity {
     public static final int SECTION_FEEDBACK = 3;
     public static final int SECTION_TEXT_TO_SPEECH = 4;
     public static final int SECTION_MISC = 5;
+    public static final int SECTION_BACKUP = 7;
 
     public static Intent newIntent(Context context, int section) {
         Intent intent = new Intent(context, SectionActivity.class);
@@ -91,6 +99,8 @@ public class SectionActivity extends AppCompatActivity {
             return R.string.pref_text_to_speech_title;
         case SECTION_MISC:
             return R.string.pref_category_misc_title;
+        case SECTION_BACKUP:
+            return R.string.pref_category_backup_title;
         default:
             return R.string.pref_category_keyboard_title;
         }
@@ -102,6 +112,10 @@ public class SectionActivity extends AppCompatActivity {
         private Parser brailleParser;
         private int section;
         private TextToSpeech tts;
+        // Registered while the backup section is being created; the system
+        // file picker hands its result back through these.
+        private ActivityResultLauncher<String> exportLauncher;
+        private ActivityResultLauncher<String[]> importLauncher;
 
         public static Settings newInstance(int section) {
             Settings fragment = new Settings();
@@ -182,6 +196,10 @@ public class SectionActivity extends AppCompatActivity {
             case SectionActivity.SECTION_MISC:
                 setPreferencesFromResource(R.xml.prefs_misc, rootKey);
                 wireClearLogs();
+                break;
+            case SectionActivity.SECTION_BACKUP:
+                setPreferencesFromResource(R.xml.prefs_backup, rootKey);
+                wireBackupAndRestore();
                 break;
             default:
                 setPreferencesFromResource(R.xml.prefs_keyboard, rootKey);
@@ -390,6 +408,118 @@ public class SectionActivity extends AppCompatActivity {
                             return true;
                         }
                     });
+        }
+
+        // "Export settings" and "Import settings" both hand off to the system
+        // file picker, then report the outcome in a toast. The launchers are
+        // registered here rather than lazily on the tap because
+        // registerForActivityResult() has to run before the fragment starts;
+        // onCreatePreferences is called from onCreate, so this is in time.
+        private void wireBackupAndRestore() {
+            exportLauncher = registerForActivityResult(
+                    new ActivityResultContracts.CreateDocument("text/xml"),
+                    new ActivityResultCallback<Uri>() {
+                        @Override
+                        public void onActivityResult(Uri uri) {
+                            if (uri == null) {
+                                // The picker was dismissed; saying so would
+                                // just be noise.
+                                return;
+                            }
+                            runBackupTask(uri, true);
+                        }
+                    });
+            importLauncher = registerForActivityResult(
+                    new ActivityResultContracts.OpenDocument(),
+                    new ActivityResultCallback<Uri>() {
+                        @Override
+                        public void onActivityResult(Uri uri) {
+                            if (uri == null) {
+                                return;
+                            }
+                            runBackupTask(uri, false);
+                        }
+                    });
+
+            Preference export = findPreference(getString(
+                    R.string.pref_export_settings_key));
+            if (export != null) {
+                export.setOnPreferenceClickListener(
+                        new Preference.OnPreferenceClickListener() {
+                            @Override
+                            public boolean onPreferenceClick(
+                                    Preference preference) {
+                                launch(exportLauncher,
+                                        SettingsBackup.suggestedFileName());
+                                return true;
+                            }
+                        });
+            }
+            Preference restore = findPreference(getString(
+                    R.string.pref_import_settings_key));
+            if (restore != null) {
+                restore.setOnPreferenceClickListener(
+                        new Preference.OnPreferenceClickListener() {
+                            @Override
+                            public boolean onPreferenceClick(
+                                    Preference preference) {
+                                // Every type, not just XML: providers report
+                                // the type of a saved backup inconsistently,
+                                // and a file the user cannot see in the
+                                // picker is worse than one this rejects
+                                // after reading it.
+                                launch(importLauncher,
+                                        new String[] { "*/*" });
+                                return true;
+                            }
+                        });
+            }
+        }
+
+        // Open the picker, surviving a device with no app able to show one.
+        private <I> void launch(ActivityResultLauncher<I> launcher, I input) {
+            if (launcher == null) {
+                return;
+            }
+            try {
+                launcher.launch(input);
+            } catch (ActivityNotFoundException e) {
+                toast(R.string.settings_backup_no_file_app);
+            }
+        }
+
+        // Read or write the document off the main thread, then report what
+        // happened. The application context is used for the work and the
+        // toast so a screen rotation mid-write cannot leak or crash it.
+        private void runBackupTask(final Uri uri, final boolean exporting) {
+            final Context context = getActivity().getApplicationContext();
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    final boolean ok = exporting
+                            ? SettingsBackup.export(context, uri)
+                            : SettingsBackup.restore(context, uri);
+                    final int message = exporting
+                            ? (ok ? R.string.settings_exported
+                                    : R.string.settings_export_failed)
+                            : (ok ? R.string.settings_imported
+                                    : R.string.settings_import_failed);
+                    new Handler(Looper.getMainLooper()).post(new Runnable() {
+                        @Override
+                        public void run() {
+                            Toast.makeText(context, message,
+                                    Toast.LENGTH_LONG).show();
+                        }
+                    });
+                }
+            }, "settings-backup").start();
+        }
+
+        private void toast(int message) {
+            Context context = getActivity();
+            if (context != null) {
+                Toast.makeText(context, message, Toast.LENGTH_LONG).show();
+            }
         }
 
         // Launch a sub-screen activity when one of this section's preferences

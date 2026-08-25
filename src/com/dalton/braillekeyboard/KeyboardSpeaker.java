@@ -28,11 +28,11 @@ import android.util.DisplayMetrics;
  *
  * <p>The facade does not own an engine. It is attached to the one
  * process-wide {@link Speech} instance that {@code BrailleIME.onCreate}
- * creates and shares between the view and the emoji/command engines, so the
- * underlying TTS engine is constructed once per process instead of being torn
- * down and re-initialised on every keyboard open (which both delayed opening
- * and raced the asynchronous initialisation against wrapper replacement,
- * permanently silencing whichever wrapper lost).
+ * creates and shares between the view and the emoji/command engines. That
+ * instance is never replaced - {@link Speech#ensureFresh} swaps the engine
+ * inside it instead - so this facade cannot end up holding a wrapper whose
+ * engine was torn down under it, which is what used to silence the keyboard
+ * for the rest of the session.
  */
 final class KeyboardSpeaker {
 

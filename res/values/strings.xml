@@ -38,6 +38,9 @@
     <string name="pref_sound_theme_key">SOUND_THEME</string>
     <string name="pref_category_keyboard_key">KEYBOARD_CATEGORY</string>
     <string name="pref_category_misc_key">MISC</string>
+    <string name="pref_category_backup_key">BACKUP_RESTORE</string>
+    <string name="pref_export_settings_key">EXPORT_SETTINGS</string>
+    <string name="pref_import_settings_key">IMPORT_SETTINGS</string>
     <string name="pref_default_keyboard_default">0</string>
     <string name="pref_default_keyboard_key">DEFAULT_KEYBOARD</string>
     <string name="pref_double_space_period_default">true</string>
@@ -173,6 +176,11 @@
     <string name="pref_category_feedback_title">Feedback Settings</string>
     <string name="pref_category_keyboard_title">Keyboard Settings</string>
     <string name="pref_category_misc_title">Miscellaneous Settings</string>
+    <string name="pref_category_backup_title">Backup and Restore</string>
+    <string name="pref_export_settings_title">Export settings</string>
+    <string name="pref_export_settings_summary">Save all of your keyboard settings to a file</string>
+    <string name="pref_import_settings_title">Import settings</string>
+    <string name="pref_import_settings_summary">Replace all of your keyboard settings with the contents of a previously exported file</string>
     <string name="pref_default_computer_braille_table_summary"></string>
     <string name="pref_default_computer_braille_table_title">Computer Braille table</string>
     <string name="pref_default_keyboard_summary">Choose the keyboard layout that is displayed by default: %s</string>
@@ -259,6 +267,11 @@
     <string name="pref_clear_logs_title">Clear logs</string>
     <string name="pref_clear_logs_summary">Delete the diagnostic log file written by the keyboard</string>
     <string name="logs_cleared">Logs cleared.</string>
+    <string name="settings_exported">Settings exported successfully.</string>
+    <string name="settings_export_failed">Could not export the settings. The file could not be written.</string>
+    <string name="settings_imported">Settings imported successfully.</string>
+    <string name="settings_import_failed">Could not import the settings. The file is not a valid settings file.</string>
+    <string name="settings_backup_no_file_app">No app on this device can pick files.</string>
     <string name="action_share_logs">Share logs</string>
     <string name="no_log_file">No log file found yet. Enable logging in the settings and use the keyboard first, then share the logs.</string>
     <string name="share_logs_failed">Could not share the log file.</string>
