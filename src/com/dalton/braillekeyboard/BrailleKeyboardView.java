@@ -173,6 +173,10 @@ public class BrailleKeyboardView extends android.view.View
         padController.cancelCalibrationScheduled();
         if (padController.hasPendingManualCalibration()) {
             padController.abortManualCalibration();
+        } else {
+            // Nothing announced yet: silently drop any half-completed
+            // legacy two-handed calibration state.
+            padController.resetLegacyCalibration();
         }
         feedbackManager.emitEvent(FeedbackEvent.CLOSE);
         if (SpeechEvent.KEYBOARD_CLOSED.isEnabled(getContext())) {

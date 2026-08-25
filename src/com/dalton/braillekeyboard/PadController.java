@@ -494,7 +494,9 @@ public class PadController {
             return result;
         }
 
-        // First hand done: park its dots and ask for the other hand.
+        // First hand done: park its dots and ask for the other hand. No
+        // calibrate sound here - the calibration has not finished yet, and
+        // that sound made users believe it had.
         for (int i = 0; i < dotsDown.length; i++) {
             if (dotsDown[i] != null) {
                 lastDotList.add(dotsDown[i]);
@@ -502,14 +504,24 @@ public class PadController {
             }
         }
         listener.speak(R.string.keyboard_next_three);
-        listener.emitCalibrate();
         return true;
     }
 
     /** True while a manual calibration is running or still pending. */
     public boolean hasPendingManualCalibration() {
+        // lastDotList also covers the legacy two-handed flow, which parks
+        // its first hand's dots there between rounds.
         return isManualCalibrating || calibrationRunnable != null
-                || !manualCalibrationDots.isEmpty();
+                || !manualCalibrationDots.isEmpty() || !lastDotList.isEmpty();
+    }
+
+    /**
+     * Silently drops a half-completed legacy two-handed calibration (the
+     * parked first hand and the hold-time gate) without logging an abort.
+     */
+    public void resetLegacyCalibration() {
+        lastDotList.clear();
+        reset();
     }
 
     public boolean hasPad() {
