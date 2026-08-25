@@ -21,6 +21,7 @@ import java.util.Locale;
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.inputmethodservice.InputMethodService;
 import android.inputmethodservice.Keyboard;
@@ -61,6 +62,26 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
     private final TextComposer textComposer = new TextComposer(this);
     /** The one process-wide speech instance, shared with the view and both engines. */
     private Speech sharedSpeech;
+    // Rebuilds the speech engine when a speech-related preference changes,
+    // so engine and accessibility-volume choices apply without restarting
+    // the phone.
+    private final SharedPreferences.OnSharedPreferenceChangeListener
+            speechPrefListener =
+            new SharedPreferences.OnSharedPreferenceChangeListener() {
+                @Override
+                public void onSharedPreferenceChanged(
+                        SharedPreferences sharedPreferences, String key) {
+                    if (key == null) {
+                        return;
+                    }
+                    if (key.equals(getString(
+                            R.string.pref_text_to_speech_engine_key))
+                            || key.equals(getString(
+                                    R.string.pref_use_accessibility_volume_key))) {
+                        rebuildSpeech();
+                    }
+                }
+            };
     /**
      * The single access point to the editor: tracks the cursor through
      * {@link #onUpdateSelection} and through every write issued via
@@ -112,6 +133,8 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         });
         emojiEngine = new EmojiEngine(this, this, sharedSpeech);
         commandModeEngine = new CommandModeEngine(this, this, sharedSpeech);
+        Options.getSharedPreferences(this)
+                .registerOnSharedPreferenceChangeListener(speechPrefListener);
         if (brailleParser == null) {
             brailleParser = new Parser(this,
                     new Parser.Listener() {
@@ -353,6 +376,25 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         applyPlacement();
     }
 
+    /**
+     * Replaces the shared speech instance with a freshly-initialising one.
+     * Called when a speech-related preference changes so the new engine or
+     * audio-attributes take effect immediately. The view and both engines
+     * follow the static engine at call time, so reattaching the view is the
+     * only extra work needed.
+     */
+    private void rebuildSpeech() {
+        Diagnostics.log(this, "rebuilding speech for changed settings");
+        sharedSpeech = new Speech(this, new Speech.OnReadyListener() {
+            @Override
+            public void ttsReady() {
+            }
+        });
+        if (brailleView != null) {
+            brailleView.attachSpeech(sharedSpeech);
+        }
+    }
+
     @Override
     public void onDestroy() {
         super.onDestroy();
@@ -360,6 +402,8 @@ public class BrailleIME extends InputMethodService implements KeyboardListener,
         AccessibilityService.setKeyboardPassthrough(false);
         // Nor under a stale full-screen keyboard overlay.
         KeyboardOverlayHost.removeOverlay();
+        Options.getSharedPreferences(this)
+                .unregisterOnSharedPreferenceChangeListener(speechPrefListener);
         if (sharedSpeech != null) {
             sharedSpeech.shutdown(null);
             sharedSpeech = null;

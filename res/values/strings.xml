@@ -240,6 +240,10 @@
     <string name="pref_keyboard_invert_title">Invert keyboard</string>
     <string name="pref_invert_gestures_summary">Invert the direction of gestures on their own. When the keyboard itself is inverted, enabling this restores the normal gesture directions</string>
     <string name="pref_invert_gestures_title">Invert gestures</string>
+    <string name="pref_use_legacy_calibration_default">false</string>
+    <string name="pref_use_legacy_calibration_key">USE_LEGACY_CALIBRATION</string>
+    <string name="pref_use_legacy_calibration_summary">Calibrate the old way: hold three fingers, lift them, then repeat with the other hand - instead of touching dots one by one or all dots at once</string>
+    <string name="pref_use_legacy_calibration_title">Use legacy calibration system</string>
     <string name="pref_keyboard_fullscreen_summary">Show the keyboard over the whole screen so that notifications cannot close it while you type</string>
     <string name="pref_keyboard_fullscreen_title">Full-screen mode</string>
     <string name="pref_keyboard_style_summary">Configure the layout of the dots on the keyboard: %s</string>

@@ -424,10 +424,92 @@ public class PadController {
 
     /** Clear all transient touch state after a gesture completes. */
     public void reset() {
+        legacyRequiredTouchTime = 0;
         for (int i = 0; i < dotsDown.length; i++) {
             dotsDown[i] = null;
         }
         handledSwipe = false;
+    }
+
+    // ---- Legacy two-handed lift calibration ------------------------------
+    //
+    // Restored from the system before the guided calibration was introduced
+    // (commit 39b9e02's parent), for users it does not suit: hold three
+    // fingers, lift them, then hold the other three and lift again. Enabled
+    // with the "Use legacy calibration system" preference; when off, none of
+    // this code runs.
+
+    private long legacyRequiredTouchTime;
+
+    /** LEGACY: pointer down also arms the minimum-hold-time gate. */
+    public void legacyOnPointerDown(int id, int x, int y) {
+        if (legacyRequiredTouchTime == 0) {
+            legacyRequiredTouchTime = System.currentTimeMillis()
+                    + LONG_HOLD_DELAY;
+        }
+        onPointerDown(id, x, y);
+    }
+
+    /**
+     * LEGACY two-handed calibration attempt driven by the finger that was
+     * just lifted. The first round stores one hand's three dots; the second
+     * round completes all six and rebuilds the pad.
+     *
+     * @return true when the lift was consumed as part of calibrating.
+     */
+    public boolean legacySetPad(int id, int width, int height) {
+        final int TOTAL_DOTS = 6;
+        final int ONE_SIDE = 3;
+        if (legacyRequiredTouchTime > System.currentTimeMillis()
+                || countDotsDown(dotsDown) != ONE_SIDE) {
+            return false;
+        }
+        if (lastDotList.size() != ONE_SIDE && !lastDotList.isEmpty()) {
+            lastDotList.clear();
+            return false;
+        }
+
+        // Add the first hand's dots to the opposite slots for this round.
+        for (int i = 0; i < lastDotList.size(); i++) {
+            Coords coord = lastDotList.get(i);
+            dotsDown[ONE_SIDE + i] = new Coords(ONE_SIDE + i,
+                    coord.x, coord.y);
+        }
+
+        if (countDotsDown(dotsDown) == TOTAL_DOTS) {
+            setDotsSevenEight(false, false);
+            Coords[] sixDots = new Coords[TOTAL_DOTS];
+            for (int i = 0, j = 0; i < dotsDown.length
+                    && j < sixDots.length; i++) {
+                if (dotsDown[i] != null) {
+                    sixDots[j++] = new Coords(dotsDown[i].getSecondX(),
+                            dotsDown[i].getSecondY());
+                }
+            }
+            boolean result = selectPad(sixDots, width, height);
+            listener.speak(result ? pad.padString : R.string.keyboard_error);
+            listener.emitCalibrate();
+            lastDotList.clear();
+            reset();
+            return result;
+        }
+
+        // First hand done: park its dots and ask for the other hand.
+        for (int i = 0; i < dotsDown.length; i++) {
+            if (dotsDown[i] != null) {
+                lastDotList.add(dotsDown[i]);
+                dotsDown[i] = null;
+            }
+        }
+        listener.speak(R.string.keyboard_next_three);
+        listener.emitCalibrate();
+        return true;
+    }
+
+    /** True while a manual calibration is running or still pending. */
+    public boolean hasPendingManualCalibration() {
+        return isManualCalibrating || calibrationRunnable != null
+                || !manualCalibrationDots.isEmpty();
     }
 
     public boolean hasPad() {

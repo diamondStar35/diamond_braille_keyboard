@@ -167,6 +167,13 @@ public class BrailleKeyboardView extends android.view.View
     }
 
     public void close() {
+        // A pending or running calibration must never survive closing the
+        // keyboard; reopening has to start fresh instead of resuming an
+        // abandoned run.
+        padController.cancelCalibrationScheduled();
+        if (padController.hasPendingManualCalibration()) {
+            padController.abortManualCalibration();
+        }
         feedbackManager.emitEvent(FeedbackEvent.CLOSE);
         if (SpeechEvent.KEYBOARD_CLOSED.isEnabled(getContext())) {
             speaker.speak(getContext().getString(R.string.closing_keyboard),
@@ -366,10 +373,15 @@ public class BrailleKeyboardView extends android.view.View
             if (shrinkKeyboard) {
                 expandKeyboard();
             } else {
-                padController.onPointerDown(id, x, y);
-                // Holding three fingers still starts the guided calibration
-                // and holding every dot at once calibrates instantly.
-                padController.checkAndScheduleCalibration(width, height);
+                if (isLegacyCalibration()) {
+                    padController.legacyOnPointerDown(id, x, y);
+                } else {
+                    padController.onPointerDown(id, x, y);
+                    // Holding three fingers still starts the guided
+                    // calibration and holding every dot at once calibrates
+                    // instantly.
+                    padController.checkAndScheduleCalibration(width, height);
+                }
             }
             break;
         case MotionEvent.ACTION_UP:
@@ -426,6 +438,11 @@ public class BrailleKeyboardView extends android.view.View
             break;
         case MotionEvent.ACTION_POINTER_UP:
             padController.cancelCalibrationScheduled();
+            if (isLegacyCalibration()
+                    && padController.legacySetPad(id, width, height)) {
+                // The lift was consumed by the legacy two-handed calibration.
+                return true;
+            }
             padController.onPointerMove(id, x, y);
             swipe = padController.resolveMultiFingerSwipe(isSwap());
             if (swipe != Swipe.NONE) {
@@ -454,6 +471,14 @@ public class BrailleKeyboardView extends android.view.View
     /** Switches the process resources (and optionally TTS) to the locale. */
     public boolean applyLocale(Locale locale) {
         return applyLocale(locale, true);
+    }
+
+    /**
+     * Attaches a replacement shared speech instance after the user changed
+     * a speech-related preference, so the change applies immediately.
+     */
+    public void attachSpeech(Speech speech) {
+        speaker.attach(speech);
     }
 
     private boolean applyLocale(Locale locale, boolean setTtsLocale) {
@@ -487,6 +512,15 @@ public class BrailleKeyboardView extends android.view.View
         DotRenderer.DisplayParams params = renderer.params();
         return params != null && TouchMapper.isSwap(params.autoRotate,
                 getWidth(), getHeight());
+    }
+
+    // True when the user opted into the legacy two-handed calibration.
+    private boolean isLegacyCalibration() {
+        return Options.getBooleanPreference(
+                getContext(),
+                R.string.pref_use_legacy_calibration_key,
+                Boolean.parseBoolean(getContext().getString(
+                        R.string.pref_use_legacy_calibration_default)));
     }
 
     /**
